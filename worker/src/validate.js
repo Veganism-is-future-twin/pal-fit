@@ -3,7 +3,7 @@
 import { ApiError } from './http.js';
 import { isValidYmd, ageOn } from './time.js';
 
-export const MEAL_TAGS = ['home_cooked', 'outside', 'skipped', 'high_protein', 'fruits_veg', 'junk', 'sweet'];
+export const MEAL_TAGS = ['mess', 'home_cooked', 'outside', 'skipped', 'high_protein', 'fruits_veg', 'junk', 'sweet'];
 export const WORKOUT_TYPES = ['walk', 'gym', 'yoga', 'run', 'sports', 'cycling', 'home', 'other'];
 export const GENDERS = ['male', 'female', 'other', 'prefer_not'];
 export const ACTIVITY_LEVELS = ['sedentary', 'light', 'moderate', 'active'];
@@ -90,6 +90,22 @@ export function validateDisplayName(v) {
   const s = text(v, 'Name', 40);
   if (!s) throw bad('Please enter a name.');
   return s;
+}
+
+/** Personal daily targets set by the user. */
+export function validateTargets(b) {
+  if (!b || typeof b !== 'object') throw bad('Missing targets.');
+  const req = (v, name, min, max, opts) => {
+    const n = num(v, name, min, max, opts);
+    if (n == null) throw bad(`Please enter ${name.toLowerCase()}.`);
+    return n;
+  };
+  return {
+    steps_target: req(b.steps_target, 'Steps target', 1000, 30000, { integer: true }),
+    water_target_l: Math.round(req(b.water_target_l, 'Water target', 0.5, 5) * 4) / 4,
+    sleep_target_h: Math.round(req(b.sleep_target_h, 'Sleep target', 4, 12) * 2) / 2,
+    workout_target_min: req(b.workout_target_min, 'Workout target', 0, 180, { integer: true }),
+  };
 }
 
 export function validateWeight(v) {

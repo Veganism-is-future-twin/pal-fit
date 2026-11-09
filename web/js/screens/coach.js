@@ -1,6 +1,7 @@
 // Coach chat: a clean, full-height chat. Messages scroll; the composer stays at the bottom.
 
-import { get, post } from '../api.js';
+import { post } from '../api.js';
+import { swr, putCache, cached } from '../store.js';
 import { h, mount, icon, markdown, toast } from '../ui.js';
 
 const SUGGESTIONS = [
@@ -12,9 +13,16 @@ const SUGGESTIONS = [
   'Plan my meals for tomorrow',
 ];
 
-export async function renderCoach(view, { go }) {
-  const data = await get('/api/chat');
+export async function renderCoach(view, ctx) {
+  // Show saved chat instantly (works offline), then refresh from the server.
+  const session = { interacted: false };
+  await swr('/api/chat', (data) => {
+    if (session.interacted) return;     // don't redraw under someone who is typing/chatting
+    drawCoach(view, data, ctx, session);
+  });
+}
 
+function drawCoach(view, data, { go }, session) {
   if (!data.aiEnabled) {
     mount(view, h('div', { class: 'card empty' },
       h('div', { class: 'empty-icon' }, icon('sparkle')),
@@ -47,7 +55,7 @@ export async function renderCoach(view, { go }) {
   const form = h('form', { class: 'composer' }, input, sendBtn);
 
   const autosize = () => { input.style.height = 'auto'; input.style.height = Math.min(140, input.scrollHeight) + 'px'; };
-  input.addEventListener('input', autosize);
+  input.addEventListener('input', () => { session.interacted = true; autosize(); });
   input.addEventListener('keydown', (e) => {
     // Enter sends on laptops; on phones Enter adds a new line.
     if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(hover: hover)').matches) { e.preventDefault(); form.requestSubmit(); }
@@ -68,6 +76,7 @@ export async function renderCoach(view, { go }) {
   async function send(text) {
     const message = text.trim();
     if (!message || busy) return;
+    session.interacted = true;
     if (quota.left <= 0) {
       toast(quota.limit ? "You've used today's coach messages. Chat resets at midnight." : 'Chat is turned off.', { error: true });
       return;
@@ -86,6 +95,11 @@ export async function renderCoach(view, { go }) {
       const res = await post('/api/chat', { message });
       typing.replaceWith(bubble(res.messages[1]));
       quota = res.quota; paintMeta();
+      // Keep the saved copy in step so the chat reopens instantly with this reply.
+      const saved = cached('/api/chat');
+      if (res.ok && saved) {
+        putCache('/api/chat', { ...saved, quota: res.quota, messages: [...saved.messages, ...res.messages].slice(-60) });
+      }
     } catch (e) {
       typing.remove();
       toast(e.message, { error: true });

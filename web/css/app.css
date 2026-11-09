@@ -368,6 +368,29 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
 }
 .glass::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--water); transition: height .15s; }
 .glass.full::after { height: 76%; }
+/* water: 5 one-litre bars (fill level set by --level: 0, 0.5 or 1) */
+.water-bars { display: grid; grid-template-columns: repeat(5, minmax(0, 72px)); gap: 10px; }
+.water-bar {
+  position: relative; height: 96px; border-radius: 10px; border: 1.5px solid var(--water);
+  background: var(--surface); cursor: pointer; overflow: hidden; padding: 0;
+}
+.water-fill { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--level, 0) * 100%); background: var(--water); transition: height .18s ease; }
+.water-label { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: .75rem; font-weight: 650; color: var(--text-2); mix-blend-mode: normal; }
+.water-bar[aria-pressed="true"] .water-label { color: #fff; }
+.chip.mess-chip { border-style: dashed; }
+.chip.mess-chip[aria-pressed="true"] { border-style: solid; }
+
+/* bottom sheet / dialog */
+dialog.sheet {
+  width: min(100% - 24px, 480px); max-height: 90dvh; overflow: auto; margin: auto;
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;
+  background: var(--surface); color: var(--text); box-shadow: var(--shadow-lg);
+}
+dialog.sheet::backdrop { background: rgba(0, 0, 0, .5); }
+@media (max-width: 599.98px) {
+  dialog.sheet { margin: auto 0 0; width: 100%; max-width: 100%; border-radius: var(--radius) var(--radius) 0 0; padding-bottom: calc(20px + var(--safe-b)); }
+}
+
 .meal-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .meal-card h3 { font-size: .9rem; }
 .moods { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }

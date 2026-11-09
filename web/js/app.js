@@ -1,7 +1,7 @@
 // App entry: boot, routing, navigation, service worker.
 
 import { get, getToken, setToken, setUnauthorizedHandler } from './api.js';
-import { state, refreshMe, isAdmin, clearMe, staleMe } from './store.js';
+import { state, refreshMe, isAdmin, clearMe, staleMe, pref, setPref, clearCache } from './store.js';
 import { IS_LOCAL } from './config.js';
 import { loadGoogleScript } from './auth.js';
 import { h, icon, mount, loadingView, errorView, toast } from './ui.js';
@@ -77,53 +77,82 @@ function showChrome(on) {
   view.classList.toggle('no-nav', !on);
 }
 
+// Every navigation gets a number. If the user switches tabs before a screen has
+// finished loading, the old screen's late result is thrown away (it renders into
+// its own container, which is no longer on the page) — so screens never mix.
+let renderSeq = 0;
+
+/** Give a screen its own fresh container inside #view and return it. */
+function freshScreen() {
+  const screen = document.createElement('div');
+  screen.className = 'screen';
+  view.replaceChildren(screen);
+  return screen;
+}
+
+async function runScreen(seq, renderFn, args) {
+  const screen = freshScreen();
+  // Screens that draw from saved data paint immediately; show a spinner only if they don't.
+  const spin = setTimeout(() => { if (seq === renderSeq && !screen.firstChild) mount(screen, loadingView()); }, 120);
+  let teardown = null;
+  try {
+    teardown = await renderFn(screen, args);
+  } catch (err) {
+    console.error(err);
+    if (seq === renderSeq) mount(screen, errorView(err, () => render()));
+  } finally {
+    clearTimeout(spin);
+  }
+  if (seq !== renderSeq) { try { teardown?.(); } catch { /* ignore */ } return; }   // user already moved on
+  cleanup = teardown || null;
+}
+
 async function render() {
+  const seq = ++renderSeq;
   if (cleanup) { try { cleanup(); } catch { /* ignore */ } cleanup = null; }
   window.scrollTo(0, 0);
 
   // Not signed in → login.
   if (!getToken()) {
     showChrome(false);
-    cleanup = await renderLogin(view, { onSignedIn });
+    await runScreen(seq, renderLogin, { onSignedIn });
     return;
   }
 
-  // Load the user's summary once (and after sign-in).
+  // First load on this device (nothing saved yet): fetch the user's summary.
   if (!state.me) {
     showChrome(false);
-    mount(view, loadingView());
+    mount(freshScreen(), loadingView());
     try {
       await refreshMe();
     } catch (err) {
+      if (seq !== renderSeq) return;
       if (!getToken()) return render();          // session was rejected → login
-      mount(view, errorView(err, () => render()));
+      mount(freshScreen(), errorView(err, () => render()));
       return;
     }
+    if (seq !== renderSeq) return;
   }
 
+  // Onboarding only right after someone's very FIRST sign-in.
   const name = currentRoute();
-  if (name === 'onboarding' || (!state.me.profile && !sessionStorage.getItem('pal.skipOnboarding') && name !== 'profile')) {
+  if (pref('onboard') === '1' || name === 'onboarding') {
+    if (pref('onboard') !== '1') { location.replace('#/home'); return; }
     if (name !== 'onboarding') { location.replace('#/onboarding'); return; }
     showChrome(false);
-    cleanup = await renderOnboarding(view, { done: () => go('home') });
+    await runScreen(seq, renderOnboarding, { done: () => { setPref('onboard', null); go('home'); } });
     return;
   }
 
-  let route = ROUTES[name];
+  const route = ROUTES[name];
   if (!route || (route.admin && !isAdmin())) { location.replace('#/home'); return; }
 
   showChrome(true);
   buildNav(name);
   setTopbar(route.title);
   document.title = `${route.title} · PAL Fitness`;
-  mount(view, loadingView());
-  try {
-    cleanup = await route.render(view, { go, setTopbar });
-  } catch (err) {
-    console.error(err);
-    mount(view, errorView(err, () => render()));
-  }
-  view.focus({ preventScroll: true });
+  await runScreen(seq, route.render, { go, setTopbar });
+  if (seq === renderSeq) view.focus({ preventScroll: true });
 }
 
 async function onSignedIn() {
@@ -134,7 +163,8 @@ async function onSignedIn() {
 export function signOut(message) {
   setToken(null);
   clearMe();
-  sessionStorage.removeItem('pal.skipOnboarding');
+  clearCache();          // saved screens belong to this account only
+  setPref('onboard', null);
   if (message) toast(message, { error: true });
   location.hash = '#/home';
   render();

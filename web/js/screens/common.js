@@ -4,7 +4,7 @@ import { get } from '../api.js';
 import { h, icon, fmtInt, scoreRing, markdown, disclaimer, spinner } from '../ui.js';
 
 export const MEAL_TAG_LABELS = {
-  home_cooked: 'Home-cooked', outside: 'Outside', skipped: 'Skipped',
+  mess: 'Mess thali', home_cooked: 'Home-cooked', outside: 'Outside', skipped: 'Skipped',
   high_protein: 'High-protein', fruits_veg: 'Fruits / veg', junk: 'Junk', sweet: 'Sweet',
 };
 export const WORKOUT_LABELS = {

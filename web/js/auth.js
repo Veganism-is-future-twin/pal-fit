@@ -28,7 +28,7 @@ export async function renderGoogleButton(el, clientId, onCredential) {
     client_id: clientId,
     callback: (resp) => onCredential(resp.credential),
     ux_mode: 'popup',
-    auto_select: false,
+    auto_select: true,          // returning users with one Google account are signed in without picking again
     cancel_on_tap_outside: true,
     itp_support: true,
     use_fedcm_for_prompt: true,

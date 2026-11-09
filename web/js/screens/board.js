@@ -1,6 +1,6 @@
 // Leaderboard with ranges, podium, and a WhatsApp nudge for people who haven't logged.
 
-import { get } from '../api.js';
+import { swr, cached } from '../store.js';
 import { APP_URL } from '../config.js';
 import { h, mount, icon, avatar, segmented, loadingView, errorView, fmtInt, fmtDate, firstName } from '../ui.js';
 
@@ -18,13 +18,15 @@ export async function renderBoard(view) {
 
   mount(view, h('div', { class: 'stack' }, header, body));
 
+  // Draws saved results instantly (works offline), then updates from the server.
   async function load() {
-    mount(body, loadingView());
+    const range = lastRange;
+    const path = '/api/leaderboard?range=' + range;
+    if (!cached(path)) mount(body, loadingView());
     try {
-      const data = await get('/api/leaderboard?range=' + lastRange);
-      draw(data);
+      await swr(path, (data) => draw(data), { isCurrent: () => range === lastRange && body.isConnected });
     } catch (e) {
-      mount(body, errorView(e, load));
+      if (range === lastRange) mount(body, errorView(e, load));
     }
   }
 

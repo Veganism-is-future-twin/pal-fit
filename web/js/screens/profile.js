@@ -2,7 +2,7 @@
 // (Your plan and progress charts live on Home.)
 
 import { get, post, patch } from '../api.js';
-import { state, refreshMe, isAdmin, pref, setPref } from '../store.js';
+import { state, refreshMe, isAdmin, pref, setPref, swr, putCache } from '../store.js';
 import { h, mount, icon, avatar, segmented, switchField, field, toast, lineChart, fmtDate } from '../ui.js';
 import { installCard } from '../install.js';
 import { googleSignOut } from '../auth.js';
@@ -111,11 +111,13 @@ async function loadWeights(card) {
       await post('/api/weight', { weight_kg: input.value });
       input.value = '';
       toast('Weight saved');
-      draw((await get('/api/weight')).weights);
+      const fresh = await get('/api/weight');
+      putCache('/api/weight', fresh);
+      draw(fresh.weights);
     } catch (err) { toast(err.message, { error: true }); }
     btn.disabled = false;
   });
 
   mount(card, h('div', { class: 'card-title' }, icon('scale'), h('h2', null, 'Weekly weigh-in')), form, h('div', { class: 'mt-8' }, chartBox));
-  try { draw((await get('/api/weight')).weights); } catch { draw([]); }
+  try { await swr('/api/weight', (d) => draw(d.weights)); } catch { draw([]); }
 }

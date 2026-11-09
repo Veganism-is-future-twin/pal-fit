@@ -9,10 +9,7 @@ export async function renderOnboarding(view, { done }) {
   const user = state.me.user;
   let aiEnabled = user.aiEnabled;
 
-  const finishLater = async () => {
-    sessionStorage.setItem('pal.skipOnboarding', '1');
-    done();
-  };
+  const finishLater = () => done();
 
   function step1() {
     const name = h('input', { class: 'input', maxlength: 40, value: user.displayName, autocomplete: 'nickname' });

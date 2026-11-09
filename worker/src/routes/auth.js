@@ -21,6 +21,7 @@ async function signIn(ctx, identity, inviteCode) {
 
   // Speed: everything after this first lookup happens in ONE database round trip.
   let user = await first(env.DB, 'SELECT * FROM users WHERE google_sub = ?', identity.sub);
+  const isNew = !user;
   const writes = [];
 
   if (!user) {
@@ -52,13 +53,9 @@ async function signIn(ctx, identity, inviteCode) {
   }
 
   const session = await sessionStatements(env, user.id);
-  const results = await env.DB.batch([
-    ...writes,
-    ...session.statements,
-    env.DB.prepare('SELECT user_id FROM profiles WHERE user_id = ?').bind(user.id),
-  ]);
-  const hasProfile = results[results.length - 1].results.length > 0;
-  return json({ token: session.token, user: publicUser(user), needsOnboarding: !hasProfile });
+  await env.DB.batch([...writes, ...session.statements]);
+  // Onboarding (welcome + details) is shown only on a person's very first sign-in.
+  return json({ token: session.token, user: publicUser(user), needsOnboarding: isNew });
 }
 
 export function registerAuthRoutes(router) {

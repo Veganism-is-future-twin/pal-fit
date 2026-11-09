@@ -3,7 +3,9 @@
 import { ApiError, json, readJson } from '../http.js';
 import { all, first, run } from '../db.js';
 import { requireUser, publicUser } from '../auth.js';
-import { validateProfile, validateDisplayName, validateWeight } from '../validate.js';
+import { validateProfile, validateDisplayName, validateWeight, validateTargets } from '../validate.js';
+import { newId } from '../db.js';
+import { rulePlan } from '../ai/plan.js';
 import { todayIST, addDays, istDayStartSql, daysBetween } from '../time.js';
 import { currentStreak } from '../scoring.js';
 import { targetsFor } from '../ai/context.js';
@@ -126,6 +128,27 @@ export function registerMeRoutes(router) {
         .catch((e) => console.error('plan generation failed', e)));
     }
     return json({ profile: p, planUpdating, previousPlanId: plan?.id || null });
+  });
+
+  // Personal daily targets set by the user (from the Log screen).
+  // Updates the current plan's targets, or starts a plan if there isn't one.
+  router.put('/api/me/targets', async (ctx) => {
+    const user = await requireUser(ctx);
+    const { env } = ctx;
+    const t = validateTargets(await readJson(ctx.request));
+    const plan = await first(env.DB, 'SELECT id FROM plans WHERE user_id = ? AND is_current = 1', user.id);
+    if (plan) {
+      await run(env.DB,
+        `UPDATE plans SET steps_target = ?, water_target_l = ?, sleep_target_h = ?, workout_target_min = ? WHERE id = ?`,
+        t.steps_target, t.water_target_l, t.sleep_target_h, t.workout_target_min, plan.id);
+    } else {
+      const profile = await first(env.DB, 'SELECT * FROM profiles WHERE user_id = ?', user.id);
+      await run(env.DB,
+        `INSERT INTO plans (id, user_id, steps_target, water_target_l, sleep_target_h, workout_target_min,
+           plan_markdown, ai_provider, is_current) VALUES (?, ?, ?, ?, ?, ?, ?, 'custom', 1)`,
+        newId(), user.id, t.steps_target, t.water_target_l, t.sleep_target_h, t.workout_target_min, rulePlan(profile, t));
+    }
+    return json({ targets: t });
   });
 
   router.get('/api/me/plan', async (ctx) => {

@@ -1,7 +1,7 @@
 // Sign-in screen: Google button, optional invite code, dev login on localhost.
 
 import { get, post, setToken } from '../api.js';
-import { state } from '../store.js';
+import { state, setPref } from '../store.js';
 import { GOOGLE_CLIENT_ID, IS_LOCAL } from '../config.js';
 import { h, mount, icon, spinner, field } from '../ui.js';
 import { renderGoogleButton } from '../auth.js';
@@ -33,7 +33,8 @@ export async function renderLogin(view, { onSignedIn }) {
     try {
       const res = await post(path, body);
       setToken(res.token);
-      if (res.needsOnboarding) sessionStorage.removeItem('pal.skipOnboarding');
+      // Brand-new account → short welcome/onboarding once. Returning people go straight Home.
+      if (res.needsOnboarding) setPref('onboard', '1');
       await onSignedIn();
     } catch (err) {
       setBusy(false);

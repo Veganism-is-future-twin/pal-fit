@@ -97,10 +97,15 @@ export async function requireUser(ctx) {
     throw new ApiError(403, 'account_disabled', 'Your account has been deactivated. Contact the group admin.');
   }
 
-  // Record "last seen" at most once per IST day (saves DB writes).
+  // Record "last seen" at most once per IST day (saves DB writes), and keep
+  // active people signed in: sessions slide forward to 30 days from last use.
   const today = todayIST();
   if (!user.last_seen_at || !user.last_seen_at.startsWith(today)) {
-    ctx.exec.waitUntil(run(ctx.env.DB, 'UPDATE users SET last_seen_at = ? WHERE id = ?', sqlNow(), user.id));
+    const newExpiry = sqlNow(new Date(Date.now() + SESSION_DAYS * 86400000));
+    ctx.exec.waitUntil(ctx.env.DB.batch([
+      ctx.env.DB.prepare('UPDATE users SET last_seen_at = ? WHERE id = ?').bind(sqlNow(), user.id),
+      ctx.env.DB.prepare('UPDATE sessions SET expires_at = ? WHERE token_hash = ?').bind(newExpiry, await sha256Hex(token)),
+    ]));
   }
 
   user.token = token;

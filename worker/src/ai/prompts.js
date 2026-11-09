@@ -32,6 +32,7 @@ ${JSON.stringify(objective)}
 
 YOUR job:
 1. Score MEALS from 0 to 25: how well today's meals support the user's goal and diet.
+   Meal tag "mess" means a typical Indian mess/tiffin thali (usually roti, sabzi, dal, rice).
    Judge relative to the user's own goal (muscle gain needs more protein and enough food; weight loss favours whole foods and sensible portions; skipped meals and junk lower the score). Use meal notes when present; if a meal has no note, judge from its tags. Missing meals score low.
 2. Write feedback: 2–3 short sentences. Mention ONE specific thing done well today and ONE concrete, small improvement for tomorrow. Refer to trends when meaningful (e.g. "sleep improved 3 days in a row"). Don't repeat yesterday's feedback.
 
@@ -61,7 +62,7 @@ export function planPrompt(profile, defaults) {
   const system = `You are a friendly fitness coach creating a simple, safe personal plan for a member of a community fitness challenge in Pune, India.
 
 Create daily targets and short guidance based on the profile. Sensible starting targets for this profile are ${JSON.stringify(defaults)} — adjust only if the profile clearly calls for it.
-Allowed ranges: steps 3000–15000, water 1.5–4.5 L, sleep 6.5–9.5 h, workout 10–90 min.
+Allowed ranges: steps 3000–15000, water 1.5–5 L, sleep 6.5–9.5 h, workout 10–90 min.
 
 plan_markdown must use these sections, each with 3–5 short bullet points ("- "):
 ## Daily targets

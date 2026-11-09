@@ -4,7 +4,7 @@
 // refreshes from the server in the background and redraws only if something changed.
 
 import { get, post } from '../api.js';
-import { state, refreshMe, pref, setPref } from '../store.js';
+import { state, refreshMe, pref, setPref, swr } from '../store.js';
 import {
   h, mount, icon, avatar, scoreRing, greetingWord, firstName, fmtDate, fmtInt, segmented,
   lineChart, barChart, progressBars, toast, spinner, disclaimer,
@@ -150,7 +150,8 @@ function buildHome(me, { go, stops, timers }) {
     h('div', { class: 'card-title' }, icon('users'), h('h2', { class: 'grow' }, 'Logged today'),
       h('a', { href: '#/board', class: 'small' }, 'Leaderboard')),
     h('div', { class: 'skeleton' }));
-  get('/api/today/status').then((s) => {
+  swr('/api/today/status', (s) => {
+    if (s.today !== me.today) return;   // saved list is from another day
     const done = s.people.filter((p) => p.logged);
     const notYet = s.people.filter((p) => !p.logged);
     whoEl.lastChild.replaceWith(h('div', { class: 'stack-sm' },

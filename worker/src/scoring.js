@@ -36,14 +36,14 @@ export function defaultTargets(profile = {}) {
   return t;
 }
 
-/** Keep any targets (e.g. from an AI plan) within safe, sane bounds. */
+/** Keep any targets (AI plan or user-set) within safe, sane bounds. */
 export function clampTargets(t) {
-  const c = (v, lo, hi, d) => (Number.isFinite(Number(v)) ? Math.min(hi, Math.max(lo, Number(v))) : d);
+  const c = (v, lo, hi, d) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Math.min(hi, Math.max(lo, Number(v))) : d);
   return {
-    steps_target: Math.round(c(t.steps_target, 3000, 15000, BASE_TARGETS.steps_target) / 500) * 500,
-    water_target_l: Math.round(c(t.water_target_l, 1.5, 4.5, BASE_TARGETS.water_target_l) * 4) / 4,
-    sleep_target_h: Math.round(c(t.sleep_target_h, 6.5, 9.5, BASE_TARGETS.sleep_target_h) * 2) / 2,
-    workout_target_min: Math.round(c(t.workout_target_min, 10, 90, BASE_TARGETS.workout_target_min) / 5) * 5,
+    steps_target: Math.round(c(t.steps_target, 1000, 30000, BASE_TARGETS.steps_target) / 100) * 100,
+    water_target_l: Math.round(c(t.water_target_l, 0.5, 5, BASE_TARGETS.water_target_l) * 4) / 4,
+    sleep_target_h: Math.round(c(t.sleep_target_h, 4, 12, BASE_TARGETS.sleep_target_h) * 2) / 2,
+    workout_target_min: Math.round(c(t.workout_target_min, 0, 180, BASE_TARGETS.workout_target_min) / 5) * 5,
   };
 }
 
@@ -77,7 +77,9 @@ export function objectiveScore(log, targets) {
   }
 
   let workout = 0;
-  if (log.workout_done) {
+  if (!(t.workout_target_min > 0)) {
+    workout = 10;   // target of 0 minutes = rest days are fine
+  } else if (log.workout_done) {
     workout = log.workout_min > 0 ? 10 * Math.min(1, log.workout_min / t.workout_target_min) : 5;
   }
 
@@ -99,6 +101,7 @@ export function ruleMealScore(log) {
     if (!tags.length && !log[`meal${i}_note`]) continue;     // not logged: 0
     if (tags.includes('skipped')) { sum += 1; continue; }
     let s = 4.5;
+    if (tags.includes('mess')) s += 1.5;           // typical mess thali: balanced but oily-ish
     if (tags.includes('home_cooked')) s += 2;
     if (tags.includes('high_protein')) s += 1.5;
     if (tags.includes('fruits_veg')) s += 1.5;
