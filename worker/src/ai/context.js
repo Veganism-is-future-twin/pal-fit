@@ -1,7 +1,7 @@
 // Builds the compact, anonymous summary the AI sees.
 // Never includes name, email or Google id — the AI only knows "the user".
 
-import { addDays, ageOn } from '../time.js';
+import { addDays, ageOn, longDate } from '../time.js';
 import { defaultTargets, clampTargets, parseTags, currentStreak } from '../scoring.js';
 
 /**
@@ -102,6 +102,8 @@ export function buildContext(data, date) {
   const yesterday = past.find((l) => l.log_date === addDays(date, -1));
 
   return {
+    // Spell out the weekday so the AI never has to guess it.
+    day_being_described: longDate(date),
     profile: describeProfile(profile, date),
     targets: targetsFor(profile, plan),
     today: describeLog(today),

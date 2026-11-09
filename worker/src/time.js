@@ -62,6 +62,24 @@ export function weekStart(ymd) {
   return addDays(ymd, dow === 0 ? -6 : 1 - dow);
 }
 
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** 'Monday, 9 November 2026' for a 'YYYY-MM-DD' date. */
+export function longDate(ymd) {
+  const d = new Date(ymd + 'T00:00:00Z');
+  return `${WEEKDAYS[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+/** Current IST moment for the AI, e.g. 'Monday, 9 November 2026, 6:43 PM (evening)'. */
+export function nowISTDescription(now = new Date()) {
+  const ist = new Date(now.getTime() + IST_OFFSET_MS);
+  const hh = ist.getUTCHours(), mm = String(ist.getUTCMinutes()).padStart(2, '0');
+  const part = hh < 5 ? 'night' : hh < 12 ? 'morning' : hh < 17 ? 'afternoon' : hh < 21 ? 'evening' : 'night';
+  const h12 = ((hh + 11) % 12) + 1;
+  return `${longDate(ist.toISOString().slice(0, 10))}, ${h12}:${mm} ${hh < 12 ? 'AM' : 'PM'} (${part})`;
+}
+
 /** SQLite-style UTC timestamp 'YYYY-MM-DD HH:MM:SS' (matches datetime('now')). */
 export function sqlNow(date = new Date()) {
   return date.toISOString().slice(0, 19).replace('T', ' ');

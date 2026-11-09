@@ -1,5 +1,7 @@
 // All AI prompts live here so they are easy to read and tweak.
 
+import { nowISTDescription } from '../time.js';
+
 const SAFETY = `Safety rules (always follow):
 - General wellness guidance only. You are not a doctor or dietitian.
 - No crash diets, no extreme calorie deficits, no fasting regimes, no supplement or medication advice.
@@ -24,7 +26,8 @@ const FOODS = 'Suggest Indian, everyday, affordable foods: dal, chana, rajma, mo
 // ---------------------------------------------------------------------------
 export function gradePrompt(context, objective) {
   const system = `You are a friendly, encouraging fitness coach for a small community fitness challenge in Pune, India.
-You grade ONE day of the user's log.
+You grade ONE day of the user's log: ${context.day_being_described} (India time).
+Use exactly this day name if you mention the day — never guess a weekday.
 
 The app has already scored the measurable parts with code (you must NOT change these):
 ${JSON.stringify(objective)}
@@ -97,6 +100,9 @@ export function validatePlan(parsed) {
 export function chatSystem(context) {
   return `You are "PAL Coach", a friendly, encouraging fitness and nutrition coach inside a small community fitness challenge app in Pune, India.
 Answer the user's questions about their fitness, food, sleep, water, habits and motivation.
+
+Right now it is ${nowISTDescription()} in India (IST). Use this exact day and time of day — never guess a weekday.
+"today" in the data below means this date; the day may not be over yet, so don't assume missing meals or steps were skipped if it's still early.
 
 What you know about the user (anonymous):
 ${JSON.stringify(context)}
