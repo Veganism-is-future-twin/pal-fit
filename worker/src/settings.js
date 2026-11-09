@@ -10,10 +10,6 @@ import { sqlNow } from './time.js';
 
 // Every setting the admin screen knows about.
 export const SETTINGS = {
-  invite_code: {
-    label: 'Group invite code (optional)', secret: true, env: 'GROUP_INVITE_CODE',
-    help: 'Leave empty to let anyone with a Google account join. If set, new members must enter it on their first sign-in.',
-  },
   gemini_api_key: {
     label: 'Gemini API key', secret: true, env: 'GEMINI_API_KEY',
     help: 'From aistudio.google.com → Get API key.',

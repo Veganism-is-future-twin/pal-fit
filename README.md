@@ -50,8 +50,7 @@ Register a `workers.dev` subdomain once: Cloudflare dashboard → **Workers & Pa
 ```powershell
 cd "D:\Gemini\PAL diet tracker\worker"
 npm install
-npx wrangler secret put ADMIN_EMAILS        # e.g. omkardbz123@gmail.com
-npx wrangler secret put GROUP_INVITE_CODE   # the code new members type on first sign-in
+npx wrangler secret put ADMIN_EMAILS        # owner(s), e.g. omkardbz123@gmail.com — always admin, can't be removed
 npx wrangler secret put SETTINGS_KEY        # any long random text — encrypts API keys saved in the app
 npm run db:migrate:remote
 npm run deploy

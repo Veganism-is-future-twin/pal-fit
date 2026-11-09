@@ -6,11 +6,9 @@
 # Shows a "developer login" on localhost (never works on the live site).
 DEV_LOGIN=1
 
-# Comma-separated admin emails.
+# Comma-separated OWNER emails: always admin, can't be removed or deactivated.
+# (Other admins can be added in the app: Admin → Members.)
 ADMIN_EMAILS=someone@example.com
-
-# Code new members enter on their FIRST sign-in (admins can also change it in the app).
-GROUP_INVITE_CODE=change-me
 
 # Any long random text. Encrypts API keys that admins save in the app.
 SETTINGS_KEY=replace-with-long-random-text

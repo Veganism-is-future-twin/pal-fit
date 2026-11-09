@@ -118,36 +118,82 @@ async function aiTab(body) {
 
 // ------------------------------------------------------------------ members
 function membersTab(body, data, reload) {
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+  // --- add someone by email
+  const email = h('input', { class: 'input', type: 'email', placeholder: 'friend@gmail.com', autocomplete: 'off', 'aria-label': 'Email' });
+  let role = 'member';
+  const roleSeg = segmented([{ value: 'member', label: 'Member' }, { value: 'admin', label: 'Admin' }], role, (v) => { role = v; });
+  const addBtn = h('button', { class: 'btn', type: 'submit' }, icon('plus'), 'Add');
+  const addForm = h('form', { class: 'card stack-sm' },
+    h('h3', null, 'Add a member'),
+    h('p', { class: 'help' }, 'Anyone can join by signing in with Google. Add an email here to give someone admin access in advance, or to change an existing member\'s role.'),
+    h('div', { class: 'input-row' }, email, addBtn),
+    roleSeg);
+  addForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!email.value.trim()) return email.focus();
+    addBtn.disabled = true;
+    try {
+      const r = await post('/api/admin/members', { email: email.value, role });
+      toast(r.status === 'updated' ? `${r.name} is now ${role === 'admin' ? 'an admin' : 'a member'}`
+        : `Added. They'll get ${role} access when they first sign in.`);
+      reload();
+    } catch (err) { toast(err.message, { error: true }); addBtn.disabled = false; }
+  });
+
+  // --- pending (added, not signed in yet)
+  const pending = (data.invites || []).map((i) => h('div', { class: 'list-row' },
+    h('span', { class: 'avatar' }, icon('user')),
+    h('div', { class: 'grow', style: 'min-width:0' },
+      h('div', { style: 'overflow-wrap:anywhere' }, h('b', null, i.email), ' ', h('span', { class: 'tag' + (i.role === 'admin' ? ' ink' : '') }, i.role === 'admin' ? 'Admin' : 'Member')),
+      h('div', { class: 'faint' }, `Added ${fmtDate(i.created_at.slice(0, 10))} · hasn't signed in yet`)),
+    h('button', {
+      class: 'icon-btn', 'aria-label': 'Remove', onclick: async () => {
+        if (!confirm(`Remove ${i.email} from the pending list?`)) return;
+        try { await del(`/api/admin/members/${encodeURIComponent(i.email)}`); reload(); }
+        catch (err) { toast(err.message, { error: true }); }
+      },
+    }, icon('x'))));
+
+  // --- current members
   const rows = data.users.map((u) => {
-    const actions = h('div', { class: 'row-wrap' },
-      h('button', {
-        class: 'btn sm ' + (u.active ? 'danger' : ''), onclick: async () => {
-          if (!confirm(`${u.active ? 'Deactivate' : 'Re-activate'} ${u.display_name}?`)) return;
-          try { await patch(`/api/admin/users/${u.id}`, { active: !u.active }); toast('Updated'); reload(); }
-          catch (e) { toast(e.message, { error: true }); }
-        },
-      }, u.active ? 'Deactivate' : 'Activate'),
-      h('button', {
-        class: 'btn sm secondary', onclick: async () => {
-          const role = u.role === 'admin' ? 'member' : 'admin';
-          if (!confirm(`Make ${u.display_name} ${role === 'admin' ? 'an admin' : 'a regular member'}?`)) return;
-          try { await patch(`/api/admin/users/${u.id}`, { role }); toast('Updated'); reload(); }
-          catch (e) { toast(e.message, { error: true }); }
-        },
-      }, u.role === 'admin' ? 'Remove admin' : 'Make admin'));
+    const actions = u.owner
+      ? h('p', { class: 'faint' }, 'Owner account — always an admin. It can\'t be removed or deactivated.')
+      : h('div', { class: 'row-wrap' },
+        h('button', {
+          class: 'btn sm secondary', onclick: async () => {
+            const newRole = u.role === 'admin' ? 'member' : 'admin';
+            if (!confirm(`Make ${u.display_name} ${newRole === 'admin' ? 'an admin' : 'a regular member'}?`)) return;
+            try { await patch(`/api/admin/users/${u.id}`, { role: newRole }); toast('Updated'); reload(); }
+            catch (e) { toast(e.message, { error: true }); }
+          },
+        }, u.role === 'admin' ? 'Remove admin' : 'Make admin'),
+        h('button', {
+          class: 'btn sm ' + (u.active ? 'danger' : ''), onclick: async () => {
+            if (!confirm(`${u.active ? 'Deactivate' : 'Re-activate'} ${u.display_name}?`)) return;
+            try { await patch(`/api/admin/users/${u.id}`, { active: !u.active }); toast('Updated'); reload(); }
+            catch (e) { toast(e.message, { error: true }); }
+          },
+        }, u.active ? 'Deactivate' : 'Activate'));
     return h('div', { class: 'list-row', style: 'align-items:flex-start' },
       avatar(u.display_name, u.photo_url, '', u.active ? '' : 'dim'),
-      h('div', { class: 'grow stack-sm' },
+      h('div', { class: 'grow stack-sm', style: 'min-width:0' },
         h('div', null, h('b', null, u.display_name), ' ',
-          u.role === 'admin' && h('span', { class: 'tag ink' }, 'Admin'), ' ',
+          u.owner ? h('span', { class: 'tag ink' }, 'Owner') : u.role === 'admin' && h('span', { class: 'tag ink' }, 'Admin'), ' ',
           !u.active && h('span', { class: 'tag' }, 'Inactive'), ' ',
           !u.ai_enabled && h('span', { class: 'tag' }, 'AI off')),
         h('div', { class: 'faint', style: 'overflow-wrap:anywhere' }, u.email),
-        h('div', { class: 'faint' }, `${u.days_logged} days logged · last log ${u.last_log ? fmtDate(u.last_log) : 'never'} · joined ${fmtDate(u.created_at.slice(0, 10))}`),
+        h('div', { class: 'faint' }, `${plural(u.days_logged, 'day')} logged · last log ${u.last_log ? fmtDate(u.last_log) : 'never'} · joined ${fmtDate(u.created_at.slice(0, 10))}`),
         actions));
   });
+
+  const active = data.users.filter((u) => u.active).length;
+  const admins = data.users.filter((u) => u.role === 'admin').length;
   mount(body,
-    h('p', { class: 'muted small' }, `${data.users.filter((u) => u.active).length} active members. New people join with Google + the invite code (set it under AI & keys).`),
+    addForm,
+    pending.length ? h('div', { class: 'card' }, h('h3', null, `Waiting to sign in (${pending.length})`), pending) : null,
+    h('p', { class: 'muted small' }, `${plural(active, 'active member')} · ${plural(admins, 'admin')}`),
     h('div', { class: 'card' }, rows.length ? rows : h('p', null, 'No members yet.')));
 }
 

@@ -4,7 +4,6 @@
 # Everything in this file is PUBLIC (the repo is public).
 # Secrets go in via `npx wrangler secret put <NAME>`:
 #   ADMIN_EMAILS       comma-separated admin emails
-#   GROUP_INVITE_CODE  code new members need on first sign-in (admin can also change it in the app)
 #   SETTINGS_KEY       random key that encrypts API keys saved from the admin screen
 # AI provider keys (Gemini, Groq, OpenRouter) are pasted in the app's Admin screen.
 

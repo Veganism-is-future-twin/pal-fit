@@ -2,7 +2,7 @@
 
 import { ApiError, json, readJson } from '../http.js';
 import { all, first, run, newId } from '../db.js';
-import { requireAdmin } from '../auth.js';
+import { requireAdmin, adminEmails } from '../auth.js';
 import { listSettings, saveSetting, getSetting, SETTINGS } from '../settings.js';
 import { todayIST, addDays, isValidYmd, daysBetween } from '../time.js';
 import { gradeUsers } from '../ai/grade.js';
@@ -27,7 +27,8 @@ export function registerAdminRoutes(router) {
     await requireAdmin(ctx);
     const { env } = ctx;
     const today = todayIST();
-    const [users, challenges, usage, auditRows] = await env.DB.batch([
+    const owners = adminEmails(env);
+    const [users, challenges, usage, auditRows, invites] = await env.DB.batch([
       env.DB.prepare(`SELECT u.id, u.display_name, u.email, u.photo_url, u.role, u.active, u.ai_enabled,
                         u.created_at, u.last_seen_at,
                         (SELECT COUNT(*) FROM logs l WHERE l.user_id = u.id) AS days_logged,
@@ -37,10 +38,13 @@ export function registerAdminRoutes(router) {
       env.DB.prepare('SELECT * FROM ai_usage WHERE day >= ? ORDER BY day DESC, calls DESC').bind(addDays(today, -6)),
       env.DB.prepare(`SELECT a.action, a.target, a.detail, a.created_at, u.display_name AS admin
                       FROM admin_audit a JOIN users u ON u.id = a.admin_id ORDER BY a.created_at DESC LIMIT 30`),
+      env.DB.prepare('SELECT email, role, created_at FROM member_invites ORDER BY created_at DESC'),
     ]);
     return json({
       today,
-      users: users.results,
+      // `owner` = listed in the ADMIN_EMAILS secret: always admin, can't be removed.
+      users: users.results.map((u) => ({ ...u, owner: owners.includes(String(u.email).toLowerCase()) })),
+      invites: invites.results,
       challenges: challenges.results,
       aiUsage: usage.results,
       audit: auditRows.results,
@@ -110,6 +114,11 @@ export function registerAdminRoutes(router) {
     const body = await readJson(ctx.request);
     const target = await first(ctx.env.DB, 'SELECT * FROM users WHERE id = ?', ctx.params.id);
     if (!target) throw new ApiError(404, 'not_found', 'No such member.');
+    // Owner accounts (ADMIN_EMAILS secret, e.g. omkardbz123@gmail.com) are always admin.
+    const isOwner = adminEmails(ctx.env).includes(String(target.email).toLowerCase());
+    if (isOwner && (body.active === false || body.role === 'member')) {
+      throw new ApiError(403, 'owner_protected', 'This is the owner account — it is always an admin and cannot be removed or deactivated.');
+    }
     if (target.id === admin.id && (body.active === false || body.role === 'member')) {
       throw new ApiError(400, 'invalid', "You can't deactivate or demote yourself.");
     }
@@ -129,6 +138,42 @@ export function registerAdminRoutes(router) {
     if (changes.active === 0) stmts.push(ctx.env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(target.id));
     await ctx.env.DB.batch(stmts);
     await audit(ctx.env, admin.id, 'user.update', target.id, { name: target.display_name, ...changes });
+    return json({ ok: true });
+  });
+
+  // Add someone by email as a member or admin. If they already have an account,
+  // their role changes now; otherwise it applies when they first sign in.
+  router.post('/api/admin/members', async (ctx) => {
+    const admin = await requireAdmin(ctx);
+    const b = await readJson(ctx.request);
+    const email = String(b.email || '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 120) {
+      throw new ApiError(400, 'invalid', 'Enter a valid email address.');
+    }
+    const role = b.role === 'admin' ? 'admin' : 'member';
+    const existing = await first(ctx.env.DB, 'SELECT id, display_name, role, email FROM users WHERE lower(email) = ?', email);
+    if (existing) {
+      const isOwner = adminEmails(ctx.env).includes(email);
+      if (isOwner && role === 'member') {
+        throw new ApiError(403, 'owner_protected', 'This is the owner account — it is always an admin.');
+      }
+      await run(ctx.env.DB, 'UPDATE users SET role = ?, active = 1 WHERE id = ?', role, existing.id);
+      await audit(ctx.env, admin.id, 'member.role', existing.id, { name: existing.display_name, role });
+      return json({ ok: true, status: 'updated', name: existing.display_name });
+    }
+    await run(ctx.env.DB,
+      `INSERT INTO member_invites (email, role, added_by) VALUES (?, ?, ?)
+       ON CONFLICT(email) DO UPDATE SET role = excluded.role, added_by = excluded.added_by`,
+      email, role, admin.id);
+    await audit(ctx.env, admin.id, 'member.add', email, { role });
+    return json({ ok: true, status: 'pending' });
+  });
+
+  router.delete('/api/admin/members/:email', async (ctx) => {
+    const admin = await requireAdmin(ctx);
+    const email = decodeURIComponent(ctx.params.email).toLowerCase();
+    await run(ctx.env.DB, 'DELETE FROM member_invites WHERE email = ?', email);
+    await audit(ctx.env, admin.id, 'member.remove_pending', email, null);
     return json({ ok: true });
   });
 
