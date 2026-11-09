@@ -105,10 +105,10 @@ function skip(message) {
   return e;
 }
 
-async function httpJson(url, init) {
+async function httpJson(url, init, timeoutMs = TIMEOUT_MS) {
   let res;
   try {
-    res = await fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   } catch (err) {
     throw new Error(err.name === 'TimeoutError' ? 'timeout' : 'network error');
   }
@@ -120,18 +120,36 @@ async function httpJson(url, init) {
 }
 
 // --- Google Gemini ----------------------------------------------------------
-async function callGemini(key, model, { system, messages, json, maxTokens = 2048 }) {
+// Gemini 3.x "Flash" models think before answering, which can take 10+ seconds.
+// For short coaching replies a LOW thinking level is plenty and much faster.
+const wantsLowThinking = (model) => /^gemini-[3-9]/.test(model) && !/lite/.test(model);
+
+async function callGemini(key, model, { system, messages, json, maxTokens = 2048, timeoutMs }) {
   const body = {
     contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
     generationConfig: { temperature: 0.6, maxOutputTokens: maxTokens },
   };
   if (system) body.systemInstruction = { parts: [{ text: system }] };
   if (json) body.generationConfig.responseMimeType = 'application/json';
+  if (wantsLowThinking(model)) body.generationConfig.thinkingConfig = { thinkingLevel: 'low' };
 
-  const data = await httpJson(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-    { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) }
-  );
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const send = (b) => httpJson(url,
+    { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(b) },
+    timeoutMs);
+
+  let data;
+  try {
+    data = await send(body);
+  } catch (err) {
+    // If this model doesn't accept the thinking setting, try once without it.
+    if (body.generationConfig.thinkingConfig && /HTTP 400/.test(err.message) && /think/i.test(err.message)) {
+      delete body.generationConfig.thinkingConfig;
+      data = await send(body);
+    } else {
+      throw err;
+    }
+  }
   const parts = data?.candidates?.[0]?.content?.parts || [];
   const text = parts.filter((p) => !p.thought && typeof p.text === 'string').map((p) => p.text).join('').trim();
   if (!text) throw new Error('empty response' + (data?.candidates?.[0]?.finishReason ? ` (${data.candidates[0].finishReason})` : ''));

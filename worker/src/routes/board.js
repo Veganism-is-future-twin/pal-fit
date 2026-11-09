@@ -6,29 +6,20 @@ import { all } from '../db.js';
 import { requireUser } from '../auth.js';
 import { todayIST, addDays, weekStart } from '../time.js';
 import { currentStreak, pointsInRange } from '../scoring.js';
-import { activeChallenge } from './me.js';
-
 export function registerBoardRoutes(router) {
   router.get('/api/leaderboard', async (ctx) => {
     const me = await requireUser(ctx);
     const { env } = ctx;
     const today = todayIST();
-    const range = ctx.url.searchParams.get('range') || 'challenge';
+    let range = ctx.url.searchParams.get('range') || 'month';
+    if (range === 'challenge') range = 'month';   // older app versions
 
-    let from, to = today, label;
-    const challenge = await activeChallenge(env, today);
+    const to = today;
+    let from, label;
     if (range === 'today') { from = today; label = 'Today'; }
     else if (range === 'week') { from = weekStart(today); label = 'This week'; }
-    else if (range === 'challenge') {
-      if (challenge) {
-        from = challenge.startDate;
-        to = challenge.endDate < today ? challenge.endDate : today;
-        label = challenge.name;
-      } else {
-        from = today.slice(0, 8) + '01';     // no challenge set: this calendar month
-        label = 'This month';
-      }
-    } else throw new ApiError(400, 'invalid', 'Unknown range.');
+    else if (range === 'month') { from = today.slice(0, 8) + '01'; label = 'This month'; }
+    else throw new ApiError(400, 'invalid', 'Unknown range.');
 
     // Streaks need history before `from`, so load a little extra (max ~13 users × 120 days).
     const histFrom = addDays(from, -60);
@@ -67,7 +58,7 @@ export function registerBoardRoutes(router) {
       r.rank = rank; prev = key;
     });
 
-    return json({ range, label, from, to, today, challenge, rows });
+    return json({ range, label, from, to, today, rows });
   });
 
   router.get('/api/today/status', async (ctx) => {

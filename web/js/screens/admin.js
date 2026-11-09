@@ -1,9 +1,9 @@
-// Admin tools: members, challenges, AI keys & models, re-grade, export, usage, audit.
+// Admin tools: AI keys & models, members, re-grade, export, usage, audit.
 
 import { api, get, put, post, patch, del } from '../api.js';
 import { h, mount, icon, avatar, segmented, field, toast, loadingView, errorView, fmtDate, spinner } from '../ui.js';
 
-let tab = 'ai';
+let tab = 'ai';   // remembered while the app is open
 
 export async function renderAdmin(view) {
   const body = h('div', { class: 'stack' });
@@ -12,7 +12,6 @@ export async function renderAdmin(view) {
     segmented([
       { value: 'ai', label: 'AI & keys' },
       { value: 'members', label: 'Members' },
-      { value: 'challenges', label: 'Challenges' },
       { value: 'tools', label: 'Tools' },
     ], tab, (v) => { tab = v; load(); }),
     body));
@@ -24,7 +23,6 @@ export async function renderAdmin(view) {
       else {
         const data = await get('/api/admin/overview');
         if (tab === 'members') membersTab(body, data, load);
-        else if (tab === 'challenges') challengesTab(body, data, load);
         else toolsTab(body, data);
       }
     } catch (e) {
@@ -195,52 +193,6 @@ function membersTab(body, data, reload) {
     pending.length ? h('div', { class: 'card' }, h('h3', null, `Waiting to sign in (${pending.length})`), pending) : null,
     h('p', { class: 'muted small' }, `${plural(active, 'active member')} · ${plural(admins, 'admin')}`),
     h('div', { class: 'card' }, rows.length ? rows : h('p', null, 'No members yet.')));
-}
-
-// ------------------------------------------------------------------ challenges
-function challengesTab(body, data, reload) {
-  const today = data.today;
-  const monthStart = today.slice(0, 8) + '01';
-  const d = new Date(Date.parse(monthStart + 'T00:00:00Z'));
-  d.setUTCMonth(d.getUTCMonth() + 1); d.setUTCDate(0);
-  const monthEnd = d.toISOString().slice(0, 10);
-  const monthName = new Date(monthStart + 'T12:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-
-  const name = h('input', { class: 'input', maxlength: 60, value: `${monthName} Challenge` });
-  const start = h('input', { class: 'input', type: 'date', value: today < monthEnd ? today : monthStart });
-  const end = h('input', { class: 'input', type: 'date', value: monthEnd });
-  const form = h('form', { class: 'card stack' },
-    h('h3', null, 'New challenge'),
-    field('Name', name),
-    h('div', { class: 'form-grid' }, field('Start', start), field('End', end)),
-    h('p', { class: 'help' }, 'Creating a challenge makes it the active one. The leaderboard\'s "Challenge" view uses its dates.'),
-    h('button', { class: 'btn block', type: 'submit' }, icon('plus'), 'Create & activate'));
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    try { await post('/api/admin/challenges', { name: name.value, startDate: start.value, endDate: end.value }); toast('Challenge created'); reload(); }
-    catch (err) { toast(err.message, { error: true }); }
-  });
-
-  const list = data.challenges.map((c) => h('div', { class: 'list-row' },
-    h('div', { class: 'grow' },
-      h('b', null, c.name), ' ', c.active ? h('span', { class: 'tag good' }, 'Active') : null,
-      h('div', { class: 'faint' }, `${fmtDate(c.start_date)} – ${fmtDate(c.end_date)}`)),
-    h('button', {
-      class: 'btn sm secondary', onclick: async () => {
-        try { await patch(`/api/admin/challenges/${c.id}`, { active: !c.active }); reload(); }
-        catch (err) { toast(err.message, { error: true }); }
-      },
-    }, c.active ? 'Deactivate' : 'Activate'),
-    h('button', {
-      class: 'icon-btn', 'aria-label': 'Delete', onclick: async () => {
-        if (!confirm(`Delete "${c.name}"? Logs are kept.`)) return;
-        try { await del(`/api/admin/challenges/${c.id}`); reload(); }
-        catch (err) { toast(err.message, { error: true }); }
-      },
-    }, icon('x'))));
-
-  mount(body, form, h('div', { class: 'card' }, h('h3', null, 'All challenges'),
-    list.length ? list : h('p', { class: 'muted mt-8' }, 'None yet — the leaderboard uses the current month until you create one.')));
 }
 
 // ------------------------------------------------------------------ tools

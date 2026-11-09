@@ -47,7 +47,8 @@ Reply with ONLY this JSON, nothing else:
 {"meal_score": <integer 0-25>, "feedback": "<2-3 sentences>"}`;
 
   const user = `Here is the data (the person is anonymous — call them "you"):\n${JSON.stringify(context)}`;
-  return { system, messages: [{ role: 'user', content: user }], json: true, maxTokens: 2048 };
+  // Grading runs in the background, so strong models get a little longer to answer.
+  return { system, messages: [{ role: 'user', content: user }], json: true, maxTokens: 2048, timeoutMs: 18000 };
 }
 
 export function validateGrade(parsed) {
@@ -82,7 +83,7 @@ Reply with ONLY this JSON:
 {"steps_target": <int>, "water_target_l": <number>, "sleep_target_h": <number>, "workout_target_min": <int>, "plan_markdown": "<markdown>"}`;
 
   const user = `Profile (anonymous): ${JSON.stringify(profile)}`;
-  return { system, messages: [{ role: 'user', content: user }], json: true, maxTokens: 3000 };
+  return { system, messages: [{ role: 'user', content: user }], json: true, maxTokens: 3000, timeoutMs: 22000 };
 }
 
 export function validatePlan(parsed) {

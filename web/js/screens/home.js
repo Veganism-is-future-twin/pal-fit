@@ -49,7 +49,7 @@ export async function renderHome(view, { go }) {
 
 // ---------------------------------------------------------------------------
 function buildHome(me, { go, stops, timers }) {
-  const { user, todayLog, yesterdayLog, streak, targets, challenge } = me;
+  const { user, todayLog, yesterdayLog, streak, targets } = me;
 
   // --- greeting
   const greeting = h('div', { class: 'greeting' },
@@ -57,17 +57,6 @@ function buildHome(me, { go, stops, timers }) {
     h('div', { class: 'grow' },
       h('div', { class: 'eyebrow' }, fmtDate(me.today, { weekday: 'long', day: 'numeric', month: 'long' })),
       h('h1', null, `${greetingWord()}, ${firstName(user.displayName)}`)));
-
-  // --- challenge
-  let challengeEl = null;
-  if (challenge && !challenge.ended) {
-    const pct = challenge.started ? Math.round((challenge.day / challenge.totalDays) * 100) : 0;
-    challengeEl = h('div', { class: 'card' },
-      h('div', { class: 'spread' },
-        h('div', { class: 'row', style: 'gap:10px' }, icon('flag'), h('b', null, challenge.name)),
-        h('span', { class: 'faint num' }, challenge.started ? `Day ${challenge.day} of ${challenge.totalDays}` : `Starts ${fmtDate(challenge.startDate)}`)),
-      h('div', { class: 'progress' }, h('div', { style: `width:${pct}%` })));
-  }
 
   // --- today
   let todayEl;
@@ -175,7 +164,7 @@ function buildHome(me, { go, stops, timers }) {
       'Add your goal so the coach can personalise your targets and scores.')) : null;
 
   return h('div', { class: 'stack' },
-    greeting, challengeEl, nudge, todayEl, coachEl,
+    greeting, nudge, todayEl, coachEl,
     h('div', { class: 'grid-2' }, streakEl, yesterdayEl || whoEl),
     weekEl, trendEl,
     yesterdayEl ? whoEl : null,

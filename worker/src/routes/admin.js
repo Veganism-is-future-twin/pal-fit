@@ -22,19 +22,18 @@ function csvCell(v) {
 }
 
 export function registerAdminRoutes(router) {
-  // Overview: members, challenges, AI usage, recent admin actions.
+  // Overview: members, AI usage, recent admin actions.
   router.get('/api/admin/overview', async (ctx) => {
     await requireAdmin(ctx);
     const { env } = ctx;
     const today = todayIST();
     const owners = adminEmails(env);
-    const [users, challenges, usage, auditRows, invites] = await env.DB.batch([
+    const [users, usage, auditRows, invites] = await env.DB.batch([
       env.DB.prepare(`SELECT u.id, u.display_name, u.email, u.photo_url, u.role, u.active, u.ai_enabled,
                         u.created_at, u.last_seen_at,
                         (SELECT COUNT(*) FROM logs l WHERE l.user_id = u.id) AS days_logged,
                         (SELECT MAX(log_date) FROM logs l WHERE l.user_id = u.id) AS last_log
                       FROM users u ORDER BY u.active DESC, u.display_name`),
-      env.DB.prepare('SELECT * FROM challenges ORDER BY start_date DESC'),
       env.DB.prepare('SELECT * FROM ai_usage WHERE day >= ? ORDER BY day DESC, calls DESC').bind(addDays(today, -6)),
       env.DB.prepare(`SELECT a.action, a.target, a.detail, a.created_at, u.display_name AS admin
                       FROM admin_audit a JOIN users u ON u.id = a.admin_id ORDER BY a.created_at DESC LIMIT 30`),
@@ -45,7 +44,6 @@ export function registerAdminRoutes(router) {
       // `owner` = listed in the ADMIN_EMAILS secret: always admin, can't be removed.
       users: users.results.map((u) => ({ ...u, owner: owners.includes(String(u.email).toLowerCase()) })),
       invites: invites.results,
-      challenges: challenges.results,
       aiUsage: usage.results,
       audit: auditRows.results,
     });
@@ -77,7 +75,7 @@ export function registerAdminRoutes(router) {
     const prompt = {
       system: 'Reply with ONLY this JSON: {"ok": true, "tip": "<one short healthy-habit tip>"}',
       messages: [{ role: 'user', content: 'Test' }],
-      json: true, maxTokens: 512,
+      json: true, maxTokens: 512, timeoutMs: 18000,   // same patience as real grading
     };
     const results = [];
     for (const step of chain) {
@@ -174,48 +172,6 @@ export function registerAdminRoutes(router) {
     const email = decodeURIComponent(ctx.params.email).toLowerCase();
     await run(ctx.env.DB, 'DELETE FROM member_invites WHERE email = ?', email);
     await audit(ctx.env, admin.id, 'member.remove_pending', email, null);
-    return json({ ok: true });
-  });
-
-  // --- Challenges ------------------------------------------------------------
-  router.post('/api/admin/challenges', async (ctx) => {
-    const admin = await requireAdmin(ctx);
-    const b = await readJson(ctx.request);
-    const name = String(b.name || '').trim().slice(0, 60);
-    if (!name) throw new ApiError(400, 'invalid', 'Give the challenge a name.');
-    if (!isValidYmd(b.startDate) || !isValidYmd(b.endDate) || b.endDate < b.startDate) {
-      throw new ApiError(400, 'invalid', 'Check the start and end dates.');
-    }
-    if (daysBetween(b.startDate, b.endDate) > 120) throw new ApiError(400, 'invalid', 'Max 120 days.');
-    const id = newId();
-    const stmts = [];
-    if (b.active !== false) stmts.push(ctx.env.DB.prepare('UPDATE challenges SET active = 0'));
-    stmts.push(ctx.env.DB.prepare('INSERT INTO challenges (id, name, start_date, end_date, active) VALUES (?, ?, ?, ?, ?)')
-      .bind(id, name, b.startDate, b.endDate, b.active !== false ? 1 : 0));
-    await ctx.env.DB.batch(stmts);
-    await audit(ctx.env, admin.id, 'challenge.create', id, { name, start: b.startDate, end: b.endDate });
-    return json({ ok: true, id });
-  });
-
-  router.patch('/api/admin/challenges/:id', async (ctx) => {
-    const admin = await requireAdmin(ctx);
-    const b = await readJson(ctx.request);
-    const c = await first(ctx.env.DB, 'SELECT * FROM challenges WHERE id = ?', ctx.params.id);
-    if (!c) throw new ApiError(404, 'not_found', 'No such challenge.');
-    const stmts = [];
-    if (b.active) stmts.push(ctx.env.DB.prepare('UPDATE challenges SET active = 0'));
-    stmts.push(ctx.env.DB.prepare('UPDATE challenges SET active = ? WHERE id = ?').bind(b.active ? 1 : 0, c.id));
-    await ctx.env.DB.batch(stmts);
-    await audit(ctx.env, admin.id, b.active ? 'challenge.activate' : 'challenge.deactivate', c.id, { name: c.name });
-    return json({ ok: true });
-  });
-
-  router.delete('/api/admin/challenges/:id', async (ctx) => {
-    const admin = await requireAdmin(ctx);
-    const c = await first(ctx.env.DB, 'SELECT * FROM challenges WHERE id = ?', ctx.params.id);
-    if (!c) throw new ApiError(404, 'not_found', 'No such challenge.');
-    await run(ctx.env.DB, 'DELETE FROM challenges WHERE id = ?', c.id);   // logs are not touched
-    await audit(ctx.env, admin.id, 'challenge.delete', c.id, { name: c.name });
     return json({ ok: true });
   });
 

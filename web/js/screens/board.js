@@ -4,14 +4,14 @@ import { swr, cached } from '../store.js';
 import { APP_URL } from '../config.js';
 import { h, mount, icon, avatar, segmented, loadingView, errorView, fmtInt, fmtDate, firstName } from '../ui.js';
 
-let lastRange = 'challenge';
+let lastRange = 'month';
 
 export async function renderBoard(view) {
   const body = h('div', { class: 'stack' });
   const header = h('div', { class: 'stack-sm' },
     h('h1', { class: 'page-title' }, 'Leaderboard'),
     segmented([
-      { value: 'challenge', label: 'Challenge' },
+      { value: 'month', label: 'This month' },
       { value: 'week', label: 'This week' },
       { value: 'today', label: 'Today' },
     ], lastRange, (v) => { lastRange = v; load(); }));
