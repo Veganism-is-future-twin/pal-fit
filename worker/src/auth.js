@@ -48,18 +48,22 @@ function randomToken() {
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/** Create a session for a user; returns the raw token (only ever sent to the client once). */
-export async function createSession(env, userId) {
+/**
+ * New session for a user: returns the raw token (only ever sent to the client
+ * once) plus the D1 statements that store it — run them in your batch.
+ */
+export async function sessionStatements(env, userId) {
   const token = randomToken();
   const expires = new Date(Date.now() + SESSION_DAYS * 86400000);
-  await run(
-    env.DB,
-    'INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)',
-    await sha256Hex(token), userId, sqlNow(expires)
-  );
-  // Housekeeping: drop this user's expired sessions.
-  await run(env.DB, 'DELETE FROM sessions WHERE user_id = ? AND expires_at < ?', userId, sqlNow());
-  return token;
+  return {
+    token,
+    statements: [
+      env.DB.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)')
+        .bind(await sha256Hex(token), userId, sqlNow(expires)),
+      // Housekeeping: drop this user's expired sessions.
+      env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND expires_at < ?').bind(userId, sqlNow()),
+    ],
+  };
 }
 
 export async function deleteSession(env, token) {

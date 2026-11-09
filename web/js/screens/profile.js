@@ -1,20 +1,17 @@
-// Profile: plan, history & charts, weigh-ins, details, settings, install, logout.
+// Profile: who you are, your details, weigh-ins, app settings, install, sign out.
+// (Your plan and progress charts live on Home.)
 
 import { get, post, patch } from '../api.js';
 import { state, refreshMe, isAdmin, pref, setPref } from '../store.js';
-import {
-  h, mount, icon, avatar, segmented, switchField, field, toast, lineChart, scoreRing,
-  fmtInt, fmtDate, disclaimer, loadingView, spinner,
-} from '../ui.js';
+import { h, mount, icon, avatar, segmented, switchField, field, toast, lineChart, fmtDate } from '../ui.js';
 import { installCard } from '../install.js';
 import { googleSignOut } from '../auth.js';
-import { planBlock, MEAL_TAG_LABELS } from './common.js';
 import { profileForm, GOALS } from './profile-form.js';
 import { signOut } from '../app.js';
 
 export async function renderProfile(view, { go }) {
-  const me = await refreshMe();
-  const timers = [];
+  // Speed: use what we already have; only fetch if nothing is loaded yet.
+  const me = state.me || await refreshMe();
   const user = me.user;
 
   // ------------------------------------------------------------ header
@@ -30,61 +27,19 @@ export async function renderProfile(view, { go }) {
         h('span', { class: 'tag' }, icon('calendar'), `${me.totalDaysLogged} day${me.totalDaysLogged === 1 ? '' : 's'}`),
         user.role === 'admin' && h('span', { class: 'tag ink' }, 'Admin'))));
 
-  // ------------------------------------------------------------ plan
-  const planCard = h('div', { class: 'card' });
-  const drawPlan = (plan, updating = false) => {
-    const regen = h('button', { class: 'btn ghost sm' }, icon('refresh'), 'New plan');
-    regen.addEventListener('click', async () => {
-      regen.disabled = true;
-      try {
-        const r = await post('/api/me/plan/regenerate');
-        waitForPlan(r.previousPlanId);
-      } catch (e) { toast(e.message, { error: true }); regen.disabled = false; }
-    });
-    mount(planCard,
-      h('div', { class: 'card-title' }, icon('sparkle'), h('h2', { class: 'grow' }, 'My plan'), !updating && regen),
-      updating ? h('div', { class: 'row muted' }, spinner(true), 'Preparing your personal plan…') : null,
-      plan ? planBlock(plan) : (!updating && h('div', { class: 'stack-sm' },
-        planBlock(null, me.targets),
-        h('p', { class: 'muted small' }, me.profile ? 'Your personal plan will appear here.' : 'Fill in "My details" below to get a personal plan.'))),
-      plan?.provider && h('p', { class: 'faint mt-8' }, plan.provider === 'rules' ? 'Standard plan (AI unavailable or off)' : 'Created by your AI coach'),
-      disclaimer());
-  };
-  const waitForPlan = (prevId) => {
-    drawPlan(me.plan, true);
-    const started = Date.now();
-    const poll = async () => {
-      try {
-        const { plan } = await get('/api/me/plan');
-        if (plan && plan.id !== prevId) { me.plan = plan; drawPlan(plan); toast('Your plan is ready'); return; }
-      } catch { /* retry */ }
-      if (Date.now() - started < 45000) timers.push(setTimeout(poll, 2500));
-      else { drawPlan(me.plan); toast('Plan is taking a while — check back in a minute.'); }
-    };
-    timers.push(setTimeout(poll, 2500));
-  };
-  drawPlan(me.plan);
-
-  // ------------------------------------------------------------ history
-  const historyCard = h('div', { class: 'card' }, h('div', { class: 'card-title' }, icon('chart'), h('h2', null, 'Last 30 days')), loadingView());
-  loadHistory(historyCard, me);
+  // ------------------------------------------------------------ details
+  const details = h('div', { class: 'card' },
+    h('div', { class: 'card-title' }, icon('user'), h('h2', null, 'My details')),
+    profileForm(me.profile, {
+      onSaved: async (res) => {
+        await refreshMe();
+        if (res.planUpdating) toast('Saved. Your personal plan is being updated — see Home.', { ms: 4500 });
+      },
+    }));
 
   // ------------------------------------------------------------ weight
   const weightCard = h('div', { class: 'card' });
   loadWeights(weightCard);
-
-  // ------------------------------------------------------------ details
-  const details = h('details', { class: 'card more' },
-    h('summary', null, h('span', { class: 'row' }, icon('user'), h('b', null, 'My details'))),
-    h('div', { class: 'mt-8' }, profileForm(me.profile, {
-      onSaved: async (res) => {
-        await refreshMe();
-        if (res.planUpdating) waitForPlan(res.previousPlanId);
-        details.open = false;
-        planCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      },
-    })));
-  if (!me.profile) details.open = true;
 
   // ------------------------------------------------------------ settings
   const nameInput = h('input', { class: 'input', maxlength: 40, value: user.displayName });
@@ -122,64 +77,8 @@ export async function renderProfile(view, { go }) {
   const adminLink = isAdmin() ? h('button', { class: 'btn secondary block', onclick: () => go('admin') }, icon('shield'), 'Admin tools') : null;
 
   mount(view, h('div', { class: 'stack' },
-    head, planCard, historyCard, h('div', { class: 'grid-2' }, weightCard, installCard()), details, settings, adminLink,
+    head, details, h('div', { class: 'grid-2' }, weightCard, installCard()), settings, adminLink,
     h('div', { class: 'footer-note' }, 'PAL Fitness · Pune Animal Liberation · Personhood for all animals')));
-
-  return () => timers.forEach(clearTimeout);
-}
-
-// ---------------------------------------------------------------- history
-async function loadHistory(card, me) {
-  const today = me.today;
-  const from = new Date(Date.parse(today + 'T00:00:00Z') - 29 * 86400e3).toISOString().slice(0, 10);
-  try {
-    const { logs } = await get(`/api/logs?from=${from}&to=${today}`);
-    const byDate = new Map(logs.map((l) => [l.date, l]));
-    const days = [];
-    for (let i = 29; i >= 0; i--) days.push(new Date(Date.parse(today + 'T00:00:00Z') - i * 86400e3).toISOString().slice(0, 10));
-    const labels = days.map((d) => fmtDate(d, { day: 'numeric', month: 'short' }));
-
-    const METRICS = {
-      score: { label: 'Score', color: 'var(--ink)', get: (l) => l?.score ?? null, min: 0, max: 100 },
-      steps: { label: 'Steps', color: 'var(--effort)', get: (l) => l?.steps ?? null, min: 0 },
-      sleep: { label: 'Sleep', color: 'var(--sleep)', get: (l) => l?.sleep_h ?? null, min: 0, max: 12, unit: ' h' },
-      water: { label: 'Water', color: 'var(--water)', get: (l) => l?.water_l ?? null, min: 0, max: 4, unit: ' L' },
-    };
-    let metric = 'score';
-    const chartBox = h('div', { class: 'mt-8' });
-    const drawChart = () => {
-      const m = METRICS[metric];
-      mount(chartBox, lineChart({
-        labels, values: days.map((d) => m.get(byDate.get(d))), color: m.color, min: m.min, max: m.max,
-        unit: m.unit || '', width: chartBox.clientWidth,
-      }));
-    };
-
-    const list = h('div', { class: 'history-list' }, logs.length ? logs.map((l) => historyItem(l)) : h('p', { class: 'muted' }, 'No days logged yet.'));
-
-    mount(card,
-      h('div', { class: 'card-title' }, icon('chart'), h('h2', { class: 'grow' }, 'Last 30 days'),
-        h('span', { class: 'faint' }, `${logs.length}/30 logged`)),
-      segmented(Object.entries(METRICS).map(([value, m]) => ({ value, label: m.label })), metric, (v) => { metric = v; drawChart(); }),
-      chartBox,
-      h('details', { class: 'more mt-8' }, h('summary', null, 'Day by day'), list));
-    drawChart();   // after mounting, so the chart knows its real width
-  } catch (e) {
-    mount(card, h('p', { class: 'muted' }, "Couldn't load history: " + e.message));
-  }
-}
-
-function historyItem(l) {
-  const d = new Date(l.date + 'T12:00:00');
-  const mealTags = [...new Set(l.meals.flatMap((m) => m.tags))].slice(0, 3);
-  return h('details', { class: 'history-item' },
-    h('summary', null,
-      h('div', { class: 'date' }, h('b', null, String(d.getDate())), h('span', null, d.toLocaleDateString('en-IN', { month: 'short' }))),
-      h('div', { class: 'grow small' },
-        h('div', { class: 'num' }, `${fmtInt(l.steps)} steps · ${l.water_l ?? '–'} L · ${l.sleep_h ?? '–'} h sleep`),
-        h('div', { class: 'faint' }, mealTags.map((t) => MEAL_TAG_LABELS[t]).join(', ') || 'No meal tags', l.locked ? ' · final' : '')),
-      scoreRing(l.score, { small: true })),
-    l.feedback && h('p', { class: 'small muted mt-8', style: 'padding-left:56px' }, l.feedback));
 }
 
 // ---------------------------------------------------------------- weight

@@ -19,12 +19,36 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="PAL Fitness">
 
-  <!-- Inter (falls back to the system font if offline) -->
+  <!-- Speed: open connections early -->
+  <link rel="preconnect" href="https://pal-fit-api.omkarwebsitetest.workers.dev" crossorigin>
+  <link rel="preconnect" href="https://accounts.google.com">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+
+  <!-- Inter, loaded without blocking the first paint (system font until it arrives) -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
 
   <link rel="stylesheet" href="css/app.css">
+
+  <!-- Speed: fetch all app modules in parallel instead of one after another -->
+  <link rel="modulepreload" href="js/app.js">
+  <link rel="modulepreload" href="js/api.js">
+  <link rel="modulepreload" href="js/config.js">
+  <link rel="modulepreload" href="js/store.js">
+  <link rel="modulepreload" href="js/ui.js">
+  <link rel="modulepreload" href="js/charts.js">
+  <link rel="modulepreload" href="js/auth.js">
+  <link rel="modulepreload" href="js/install.js">
+  <link rel="modulepreload" href="js/screens/common.js">
+  <link rel="modulepreload" href="js/screens/home.js">
+  <link rel="modulepreload" href="js/screens/log.js">
+  <link rel="modulepreload" href="js/screens/login.js">
+  <link rel="modulepreload" href="js/screens/onboarding.js">
+  <link rel="modulepreload" href="js/screens/coach.js">
+  <link rel="modulepreload" href="js/screens/board.js">
+  <link rel="modulepreload" href="js/screens/profile.js">
+  <link rel="modulepreload" href="js/screens/profile-form.js">
+  <link rel="modulepreload" href="js/screens/admin.js">
   <script>
     // Apply the saved theme before first paint (avoids a flash).
     try { var t = localStorage.getItem('pal.theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}

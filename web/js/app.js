@@ -1,7 +1,9 @@
 // App entry: boot, routing, navigation, service worker.
 
 import { get, getToken, setToken, setUnauthorizedHandler } from './api.js';
-import { state, refreshMe, isAdmin } from './store.js';
+import { state, refreshMe, isAdmin, clearMe, staleMe } from './store.js';
+import { IS_LOCAL } from './config.js';
+import { loadGoogleScript } from './auth.js';
 import { h, icon, mount, loadingView, errorView, toast } from './ui.js';
 import './install.js';
 
@@ -125,13 +127,13 @@ async function render() {
 }
 
 async function onSignedIn() {
-  state.me = null;
+  clearMe();
   await render();
 }
 
 export function signOut(message) {
   setToken(null);
-  state.me = null;
+  clearMe();
   sessionStorage.removeItem('pal.skipOnboarding');
   if (message) toast(message, { error: true });
   location.hash = '#/home';
@@ -149,7 +151,7 @@ window.addEventListener('hashchange', render);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && state.me && state.me.today) {
     const istToday = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
-    if (istToday !== state.me.today) { state.me = null; render(); }
+    if (istToday !== state.me.today) { staleMe(); render(); }
   }
 });
 
@@ -160,6 +162,8 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   });
 }
 
-// Fetch public config (Google client id) in the background, then render.
-get('/api/auth/config').then((c) => { state.config = c; }).catch(() => {}).finally(() => {});
+// Not signed in? Start loading Google's sign-in script right away.
+if (!getToken()) loadGoogleScript().catch(() => {});
+// The developer login only exists on localhost; ask the local API whether it's on.
+if (IS_LOCAL) get('/api/auth/config').then((c) => { state.config = c; }).catch(() => {});
 render();

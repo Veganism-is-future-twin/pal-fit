@@ -29,6 +29,10 @@ binding = "AI"
 [triggers]
 crons = ["30 18 * * *", "30 20 * * *"]
 
+# --- Run the Worker close to the database (fewer slow round trips) -------
+[placement]
+mode = "smart"
+
 # --- Logs in the Cloudflare dashboard ------------------------------------
 [observability]
 enabled = true

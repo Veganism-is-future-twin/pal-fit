@@ -1,35 +1,42 @@
-// Sign-in screen: Google button, invite code (first time only), dev login on localhost.
+// Sign-in screen: Google button, optional invite code, dev login on localhost.
 
 import { get, post, setToken } from '../api.js';
 import { state } from '../store.js';
+import { GOOGLE_CLIENT_ID, IS_LOCAL } from '../config.js';
 import { h, mount, icon, spinner, field } from '../ui.js';
 import { renderGoogleButton } from '../auth.js';
 
 export async function renderLogin(view, { onSignedIn }) {
-  let pendingCredential = null;   // Google token kept while we ask for the invite code
+  let pendingCredential = null;   // Google token kept while we ask for an invite code
   let pendingDev = null;
 
   const status = h('div', { class: 'error-text', role: 'alert' });
   const gsiSlot = h('div', { class: 'gsi-slot' }, spinner(true));
+  const busy = h('div', { class: 'row muted', style: 'justify-content:center', hidden: true },
+    spinner(true), h('span', null, 'Signing you in…'));
   const inviteInput = h('input', {
     class: 'input', placeholder: 'Invite code', autocomplete: 'off', autocapitalize: 'none',
     spellcheck: 'false', 'aria-label': 'Invite code',
   });
   const inviteBtn = h('button', { class: 'btn block', type: 'submit' }, 'Join the group');
   const inviteBox = h('form', { class: 'card stack-sm', hidden: true },
-    h('h3', null, 'Welcome'),
-    h('p', { class: 'muted small' }, 'This is a private group. Enter the invite code you got from the group admin.'),
+    h('h3', null, 'Invite code'),
+    h('p', { class: 'muted small' }, 'Enter the invite code you got from the group admin.'),
     inviteInput, inviteBtn);
+
+  const setBusy = (on) => { busy.hidden = !on; gsiSlot.style.display = on ? 'none' : ''; };
 
   async function finish(path, body) {
     status.textContent = '';
     inviteBtn.disabled = true;
+    setBusy(true);   // instant feedback while the server signs you in
     try {
       const res = await post(path, body);
       setToken(res.token);
       if (res.needsOnboarding) sessionStorage.removeItem('pal.skipOnboarding');
       await onSignedIn();
     } catch (err) {
+      setBusy(false);
       if (err.code === 'invite_required' || err.code === 'invite_invalid') {
         inviteBox.hidden = false;
         if (err.code === 'invite_invalid') status.textContent = err.message;
@@ -64,40 +71,25 @@ export async function renderLogin(view, { onSignedIn }) {
           h('div', null, icon('sparkle'), h('span', null, 'Personal AI coach and daily score')),
           h('div', null, icon('trophy'), h('span', null, 'Leaderboard and streaks with the group'))),
         gsiSlot,
+        busy,
         inviteBox,
         status,
         devBox,
         h('p', { class: 'faint' },
           'Your daily entries are analysed by AI services to give you feedback. You can turn the AI coach off anytime in your profile.'))));
 
-  // Load public config and show the right sign-in option.
-  try {
-    if (!state.config) state.config = await get('/api/auth/config');
-  } catch (err) {
-    mount(gsiSlot);
-    status.textContent = err.message;
-    return;
-  }
-
-  if (state.config.googleClientId) {
-    try {
-      mount(gsiSlot);
-      await renderGoogleButton(gsiSlot, state.config.googleClientId, (credential) => {
-        pendingCredential = credential;
-        pendingDev = null;
-        finish('/api/auth/google', { credential });
-      });
-    } catch (err) {
-      mount(gsiSlot);
-      status.textContent = err.message;
-    }
-  } else {
-    mount(gsiSlot, h('div', { class: 'banner warn' }, icon('info'),
-      h('div', { class: 'small' }, 'Google Sign-In is not set up yet. The admin needs to add the Google Client ID to the server.')));
-  }
+  // Google button — no server round trip needed (client id is public config).
+  renderGoogleButton(gsiSlot, GOOGLE_CLIENT_ID, (credential) => {
+    pendingCredential = credential;
+    pendingDev = null;
+    finish('/api/auth/google', { credential });
+  }).then(() => gsiSlot.querySelector('.spinner')?.remove())
+    .catch((err) => { mount(gsiSlot); status.textContent = err.message; });
 
   // Local testing only (the server refuses this outside localhost).
-  if (state.config.devLogin) {
+  if (IS_LOCAL) {
+    try { if (!state.config) state.config = await get('/api/auth/config'); } catch { return; }
+    if (!state.config?.devLogin) return;
     const email = h('input', { class: 'input', type: 'email', placeholder: 'test@example.com', value: 'tester@example.com' });
     const name = h('input', { class: 'input', placeholder: 'Name', value: 'Test User' });
     mount(devBox, h('form', {

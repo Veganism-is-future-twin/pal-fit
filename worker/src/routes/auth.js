@@ -3,7 +3,7 @@
 import { ApiError, json, readJson } from '../http.js';
 import { first, run, newId } from '../db.js';
 import {
-  verifyGoogleCredential, createSession, deleteSession, requireUser,
+  verifyGoogleCredential, sessionStatements, deleteSession, requireUser,
   adminEmails, safeEqual, publicUser,
 } from '../auth.js';
 import { getSetting } from '../settings.js';
@@ -19,7 +19,9 @@ async function signIn(ctx, identity, inviteCode) {
   const email = String(identity.email || '').toLowerCase();
   const isAdminEmail = adminEmails(env).includes(email);
 
+  // Speed: everything after this first lookup happens in ONE database round trip.
   let user = await first(env.DB, 'SELECT * FROM users WHERE google_sub = ?', identity.sub);
+  const writes = [];
 
   if (!user) {
     // New member. Sign-ups are OPEN to any Google account by default.
@@ -32,24 +34,31 @@ async function signIn(ctx, identity, inviteCode) {
         throw new ApiError(403, 'invite_invalid', 'That invite code is not right. Check with the group admin.');
       }
     }
-    const id = newId();
-    await run(env.DB,
-      `INSERT INTO users (id, google_sub, email, display_name, photo_url, role) VALUES (?, ?, ?, ?, ?, ?)`,
-      id, identity.sub, email, (identity.name || email.split('@')[0]).slice(0, 40), identity.picture || null,
-      isAdminEmail ? 'admin' : 'member');
-    user = await first(env.DB, 'SELECT * FROM users WHERE id = ?', id);
+    user = {
+      id: newId(), google_sub: identity.sub, email,
+      display_name: (identity.name || email.split('@')[0]).slice(0, 40),
+      photo_url: identity.picture || null, role: isAdminEmail ? 'admin' : 'member', active: 1, ai_enabled: 1,
+    };
+    writes.push(env.DB.prepare(
+      `INSERT INTO users (id, google_sub, email, display_name, photo_url, role) VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(user.id, user.google_sub, user.email, user.display_name, user.photo_url, user.role));
   } else {
     if (!user.active) throw new ApiError(403, 'account_disabled', 'Your account has been deactivated. Contact the group admin.');
     // Keep email/photo fresh; promote if newly listed as admin.
     const role = isAdminEmail ? 'admin' : user.role;
-    await run(env.DB, 'UPDATE users SET email = ?, photo_url = ?, role = ? WHERE id = ?',
-      email, identity.picture || user.photo_url, role, user.id);
     Object.assign(user, { email, photo_url: identity.picture || user.photo_url, role });
+    writes.push(env.DB.prepare('UPDATE users SET email = ?, photo_url = ?, role = ? WHERE id = ?')
+      .bind(email, user.photo_url, role, user.id));
   }
 
-  const token = await createSession(env, user.id);
-  const profile = await first(env.DB, 'SELECT user_id FROM profiles WHERE user_id = ?', user.id);
-  return json({ token, user: publicUser(user), needsOnboarding: !profile });
+  const session = await sessionStatements(env, user.id);
+  const results = await env.DB.batch([
+    ...writes,
+    ...session.statements,
+    env.DB.prepare('SELECT user_id FROM profiles WHERE user_id = ?').bind(user.id),
+  ]);
+  const hasProfile = results[results.length - 1].results.length > 0;
+  return json({ token: session.token, user: publicUser(user), needsOnboarding: !hasProfile });
 }
 
 export function registerAuthRoutes(router) {

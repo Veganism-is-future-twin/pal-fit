@@ -1,7 +1,7 @@
 // Log today — the most important screen. Fast, thumb-friendly, mostly taps.
 
 import { get, put } from '../api.js';
-import { state } from '../store.js';
+import { state, staleMe } from '../store.js';
 import {
   h, mount, icon, chip, choiceChips, slider, switchField, toast, fmtInt, fmtDate,
 } from '../ui.js';
@@ -165,6 +165,7 @@ export async function renderLog(view, { go }) {
       });
       dirty = false;
       if (state.me) state.me.todayLog = out.log;
+      staleMe();   // Home shows the new log instantly, then refreshes streak/charts
       toast(out.grading === 'pending' ? 'Saved. Your coach is reviewing your day.'
         : out.grading === 'limit_reached' ? `Saved. Today's ${out.gradeLimit} AI reviews are used up — your score still updated.`
           : 'Saved', { ms: 4000 });

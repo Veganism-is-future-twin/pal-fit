@@ -25,8 +25,13 @@ export function planView(plan) {
   };
 }
 
+const ACTIVE_CHALLENGE_SQL = 'SELECT * FROM challenges WHERE active = 1 ORDER BY start_date DESC LIMIT 1';
+
 export async function activeChallenge(env, today = todayIST()) {
-  const c = await first(env.DB, 'SELECT * FROM challenges WHERE active = 1 ORDER BY start_date DESC LIMIT 1');
+  return challengeView(await first(env.DB, ACTIVE_CHALLENGE_SQL), today);
+}
+
+function challengeView(c, today) {
   if (!c) return null;
   return {
     id: c.id, name: c.name, startDate: c.start_date, endDate: c.end_date,
@@ -39,18 +44,23 @@ export async function activeChallenge(env, today = todayIST()) {
 const PLAN_FIELDS = ['height_cm', 'weight_kg', 'gender', 'dob', 'activity_level', 'goal', 'goal_note', 'diet_pref'];
 
 export function registerMeRoutes(router) {
-  // Everything the Home screen needs, in one call.
+  // Everything the Home screen needs, in one call (one DB round trip after auth).
   router.get('/api/me', async (ctx) => {
     const user = await requireUser(ctx);
     const { env } = ctx;
     const today = todayIST();
-    const [profileR, planR, datesR, todayR, yestR] = await env.DB.batch([
+    const [profileR, planR, datesR, todayR, yestR, challengeR, recentR] = await env.DB.batch([
       env.DB.prepare('SELECT * FROM profiles WHERE user_id = ?').bind(user.id),
       env.DB.prepare('SELECT * FROM plans WHERE user_id = ? AND is_current = 1').bind(user.id),
       env.DB.prepare('SELECT log_date FROM logs WHERE user_id = ? AND log_date >= ? ORDER BY log_date DESC')
         .bind(user.id, addDays(today, -400)),
       env.DB.prepare('SELECT * FROM logs WHERE user_id = ? AND log_date = ?').bind(user.id, today),
       env.DB.prepare('SELECT * FROM logs WHERE user_id = ? AND log_date = ?').bind(user.id, addDays(today, -1)),
+      env.DB.prepare(ACTIVE_CHALLENGE_SQL),
+      // Last 30 days for the Home charts (compact).
+      env.DB.prepare(`SELECT log_date, score, steps, water_l, sleep_h, workout_done, workout_min
+                      FROM logs WHERE user_id = ? AND log_date >= ? ORDER BY log_date`)
+        .bind(user.id, addDays(today, -29)),
     ]);
     const profile = profileR.results[0] || null;
     const plan = planR.results[0] || null;
@@ -66,7 +76,11 @@ export function registerMeRoutes(router) {
       yesterdayLog: yestR.results[0] ? logView(yestR.results[0]) : null,
       streak: currentStreak(dates, today),
       totalDaysLogged: dates.size,
-      challenge: await activeChallenge(env, today),
+      challenge: challengeView(challengeR.results[0], today),
+      recent: recentR.results.map((r) => ({
+        date: r.log_date, score: r.score, steps: r.steps, water_l: r.water_l, sleep_h: r.sleep_h,
+        workout_min: r.workout_done ? (r.workout_min ?? 0) : 0,
+      })),
     });
   });
 

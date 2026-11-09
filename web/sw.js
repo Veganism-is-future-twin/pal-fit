@@ -1,11 +1,11 @@
-﻿// Service worker: caches the app shell so the app opens instantly and works
+// Service worker: caches the app shell so the app opens instantly and works
 // offline. API calls (different origin) and Google sign-in are never cached.
 // Bump VERSION whenever you deploy front-end changes.
 
-const VERSION = 'pal-v5';
+const VERSION = 'pal-v6';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
-  './js/app.js', './js/api.js', './js/auth.js', './js/config.js', './js/install.js', './js/store.js', './js/ui.js',
+  './js/app.js', './js/api.js', './js/charts.js', './js/auth.js', './js/config.js', './js/install.js', './js/store.js', './js/ui.js',
   './js/screens/admin.js', './js/screens/board.js', './js/screens/coach.js', './js/screens/common.js',
   './js/screens/home.js', './js/screens/log.js', './js/screens/login.js', './js/screens/onboarding.js',
   './js/screens/profile.js', './js/screens/profile-form.js',

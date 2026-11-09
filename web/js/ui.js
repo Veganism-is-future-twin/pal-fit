@@ -276,60 +276,6 @@ export function markdown(src) {
   return root;
 }
 
-// ---------------------------------------------------------------------------
-// Simple SVG line chart
-//   lineChart({ labels: ['1 Nov',…], values: [72, null, 80], color, min, max, unit })
-// ---------------------------------------------------------------------------
-export function lineChart({ labels, values, color = 'var(--ink)', min, max, unit = '', height = 180, width }) {
-  // Draw at the real on-screen width so text stays ~11px on every device.
-  const W = Math.max(280, Math.round(width || 360)), H = height, padL = 36, padR = 12, padT = 12, padB = 26;
-  const nums = values.filter((v) => v != null);
-  const lo = min ?? Math.min(0, ...nums);
-  const hi = max ?? Math.max(1, ...nums) * 1.1;
-  const n = Math.max(1, values.length - 1);
-  const x = (i) => padL + (i / n) * (W - padL - padR);
-  const y = (v) => padT + (1 - (v - lo) / (hi - lo || 1)) * (H - padT - padB);
 
-  const el = (tag, attrs) => {
-    const e = document.createElementNS(SVG_NS, tag);
-    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
-    return e;
-  };
-  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img', 'aria-label': 'Chart' });
-
-  for (let i = 0; i <= 3; i++) {
-    const v = lo + ((hi - lo) * i) / 3;
-    const yy = y(v);
-    svg.appendChild(el('line', { x1: padL, x2: W - padR, y1: yy, y2: yy, class: 'grid' }));
-    const t = el('text', { x: padL - 6, y: yy + 3, 'text-anchor': 'end', class: 'axis' });
-    t.textContent = v >= 1000 ? `${Math.round(v / 1000)}k` : String(Math.round(v * 10) / 10);
-    svg.appendChild(t);
-  }
-  const every = Math.ceil(labels.length / Math.max(3, Math.floor(W / 80)));
-  labels.forEach((lab, i) => {
-    if (i % every !== 0 && i !== labels.length - 1) return;
-    const t = el('text', { x: x(i), y: H - 6, 'text-anchor': 'middle', class: 'axis' });
-    t.textContent = lab;
-    svg.appendChild(t);
-  });
-
-  // Line segments (gaps where a day wasn't logged).
-  let d = '', area = '', segStart = null;
-  values.forEach((v, i) => {
-    if (v == null) { if (segStart != null) { area += `L${x(i - 1)},${y(lo)}Z`; segStart = null; } return; }
-    if (segStart == null) { d += `M${x(i)},${y(v)}`; area += `M${x(i)},${y(lo)}L${x(i)},${y(v)}`; segStart = i; }
-    else { d += `L${x(i)},${y(v)}`; area += `L${x(i)},${y(v)}`; }
-  });
-  if (segStart != null) area += `L${x(values.length - 1)},${y(lo)}Z`;
-  if (area) svg.appendChild(el('path', { d: area, class: 'area', fill: color }));
-  if (d) svg.appendChild(el('path', { d, class: 'line', stroke: color }));
-  values.forEach((v, i) => {
-    if (v == null) return;
-    const c = el('circle', { cx: x(i), cy: y(v), r: 4, class: 'dot', fill: color });
-    const title = el('title', {});
-    title.textContent = `${labels[i]}: ${v}${unit}`;
-    c.appendChild(title);
-    svg.appendChild(c);
-  });
-  return svg;
-}
+// Charts live in charts.js (re-exported here for convenience).
+export { lineChart, barChart, progressBars } from './charts.js';
