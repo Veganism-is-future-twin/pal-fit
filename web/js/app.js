@@ -69,6 +69,7 @@ export function setTopbar(title, ...actions) {
 }
 
 function showChrome(on) {
+  document.getElementById('app').classList.toggle('with-nav', on);
   nav.hidden = !on;
   topbar.hidden = !on;
   view.classList.toggle('no-nav', !on);

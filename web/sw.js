@@ -2,7 +2,7 @@
 // offline. API calls (different origin) and Google sign-in are never cached.
 // Bump VERSION whenever you deploy front-end changes.
 
-const VERSION = 'pal-v2';
+const VERSION = 'pal-v3';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/api.js', './js/auth.js', './js/config.js', './js/install.js', './js/store.js', './js/ui.js',

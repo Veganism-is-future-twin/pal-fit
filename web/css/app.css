@@ -140,7 +140,8 @@ p { margin: 0; }
 /* laptops & desktops: left sidebar */
 @media (min-width: 900px) {
   :root { --tabbar-h: 0px; }
-  .app { display: grid; grid-template-columns: 252px minmax(0, 1fr); }
+  /* Sidebar column only when the nav is shown (not on login/onboarding). */
+  .app.with-nav { display: grid; grid-template-columns: 252px minmax(0, 1fr); }
   .nav {
     position: sticky; top: 0; height: 100vh; height: 100dvh; flex-direction: column; justify-content: flex-start;
     gap: 2px; padding: 22px 16px; border-top: 0; border-right: 1px solid var(--border); background: var(--surface);

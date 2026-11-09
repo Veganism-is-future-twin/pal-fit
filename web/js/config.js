@@ -5,7 +5,7 @@ const isLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
 // Where the API (Cloudflare Worker) lives.
 export const API_BASE = isLocal
   ? `http://${location.hostname}:8787`
-  : 'https://pal-fit-api.REPLACE_ME.workers.dev';
+  : 'https://pal-fit-api.omkarwebsitetest.workers.dev';
 
 export const APP_NAME = 'PAL Fitness';
 
