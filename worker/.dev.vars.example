@@ -1,16 +1,21 @@
 # Copy this file to `.dev.vars` (same folder) for LOCAL development only.
 # `.dev.vars` is gitignored. Never put real values in this example file.
 #
-# In production, set each of these with:
-#   npx wrangler secret put <NAME>
+# In production, set secrets with:  npx wrangler secret put <NAME>
 
-# Code a new member must enter on their FIRST Google sign-in.
-GROUP_INVITE_CODE=change-me
+# Shows a "developer login" on localhost (never works on the live site).
+DEV_LOGIN=1
 
-# Comma-separated emails that get the admin role on sign-in.
-# Kept as a secret (not in wrangler.toml) so personal emails stay out of the public repo.
+# Comma-separated admin emails.
 ADMIN_EMAILS=someone@example.com
 
-# AI provider keys (the AI coach design is still being decided).
-GEMINI_API_KEY=
-OPENROUTER_API_KEY=
+# Code new members enter on their FIRST sign-in (admins can also change it in the app).
+GROUP_INVITE_CODE=change-me
+
+# Any long random text. Encrypts API keys that admins save in the app.
+SETTINGS_KEY=replace-with-long-random-text
+
+# Optional: AI keys (normally pasted in the app under Admin → AI & keys).
+# GEMINI_API_KEY=
+# GROQ_API_KEY=
+# OPENROUTER_API_KEY=

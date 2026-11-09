@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "worker", "run", "dev", "--", "--port", "8787", "--show-interactive-dev-session=false"],
+      "port": 8787
+    },
+    {
+      "name": "api-noai",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "worker", "run", "dev", "--", "-c", "wrangler.local-noai.toml", "--port", "8787", "--show-interactive-dev-session=false"],
+      "port": 8787
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve@14.2.4", "web", "-l", "5173", "--no-clipboard"],
+      "port": 5173
+    }
+  ]
+}

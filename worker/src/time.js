@@ -51,6 +51,17 @@ export function ageOn(dobYmd, onYmd = todayIST()) {
   return age;
 }
 
+/** UTC timestamp (SQLite format) of 00:00 IST on `ymd` — for "since the start of today" queries. */
+export function istDayStartSql(ymd = todayIST()) {
+  return sqlNow(new Date(Date.parse(ymd + 'T00:00:00Z') - IST_OFFSET_MS));
+}
+
+/** Monday of the IST week containing `ymd`. */
+export function weekStart(ymd) {
+  const dow = new Date(ymd + 'T00:00:00Z').getUTCDay(); // 0 = Sunday
+  return addDays(ymd, dow === 0 ? -6 : 1 - dow);
+}
+
 /** SQLite-style UTC timestamp 'YYYY-MM-DD HH:MM:SS' (matches datetime('now')). */
 export function sqlNow(date = new Date()) {
   return date.toISOString().slice(0, 19).replace('T', ' ');

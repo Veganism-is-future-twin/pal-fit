@@ -2,7 +2,11 @@
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/
 #
 # Everything in this file is PUBLIC (the repo is public).
-# Secrets (API keys, invite code, admin emails) go in via `npx wrangler secret put`.
+# Secrets go in via `npx wrangler secret put <NAME>`:
+#   ADMIN_EMAILS       comma-separated admin emails
+#   GROUP_INVITE_CODE  code new members need on first sign-in (admin can also change it in the app)
+#   SETTINGS_KEY       random key that encrypts API keys saved from the admin screen
+# AI provider keys (Gemini, Groq, OpenRouter) are pasted in the app's Admin screen.
 
 name = "pal-fit-api"
 main = "src/index.js"
@@ -13,17 +17,26 @@ compatibility_date = "2026-10-01"
 binding = "DB"                     # available in code as env.DB
 database_name = "pal-fitness"
 database_id = "fcb7661b-dc96-44f1-9680-1ddd637a74b7"
+migrations_dir = "migrations"
+
+# --- Cloudflare Workers AI (free daily allowance, no API key needed) -----
+[ai]
+binding = "AI"
 
 # --- Scheduled jobs (UTC) -------------------------------------------------
-# 18:30 UTC = 00:00 IST -> nightly final grading
-# 20:30 UTC = 02:00 IST -> retry anything still ungraded
+# 18:30 UTC = 00:00 IST -> lock the day that just ended (AI-grade anything stale first)
+# 20:30 UTC = 02:00 IST -> retry anything that could not be graded, then lock
 [triggers]
 crons = ["30 18 * * *", "30 20 * * *"]
+
+# --- Logs in the Cloudflare dashboard ------------------------------------
+[observability]
+enabled = true
 
 # --- Public settings ------------------------------------------------------
 [vars]
 TIMEZONE = "Asia/Kolkata"
 # Where the web app is served from (GitHub Pages). Used for CORS.
 FRONTEND_ORIGIN = "https://veganism-is-future-twin.github.io"
-# Filled in once the Google OAuth client is created (it is public by design).
+# Google Sign-In OAuth client id (public by design). Fill in after creating it.
 GOOGLE_CLIENT_ID = ""

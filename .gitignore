@@ -16,6 +16,9 @@ node_modules/
 backups/
 backup-*.sql
 
+# Personal Claude Code settings
+.claude/settings.local.json
+
 # OS / editor junk
 .DS_Store
 Thumbs.db

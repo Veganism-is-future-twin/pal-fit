@@ -1,0 +1,17 @@
+# LOCAL TESTING ONLY — same as wrangler.toml but without the Workers AI binding
+# (which needs a network connection to Cloudflare). Run with:
+#   npx wrangler dev -c wrangler.local-noai.toml
+name = "pal-fit-api"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pal-fitness"
+database_id = "fcb7661b-dc96-44f1-9680-1ddd637a74b7"
+migrations_dir = "migrations"
+
+[vars]
+TIMEZONE = "Asia/Kolkata"
+FRONTEND_ORIGIN = "https://veganism-is-future-twin.github.io"
+GOOGLE_CLIENT_ID = ""
