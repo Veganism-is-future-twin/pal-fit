@@ -1,0 +1,23 @@
+# Private project brief (contains group members' names) — kept local only
+CLAUDE.md
+
+# Dependencies
+node_modules/
+
+# Local secrets — NEVER commit these
+.dev.vars
+.env
+*.env
+
+# Wrangler local state (local D1 database, caches)
+.wrangler/
+
+# Database backups (contain everyone's data)
+backups/
+backup-*.sql
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

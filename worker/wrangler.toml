@@ -1,0 +1,29 @@
+# Cloudflare Worker config for the PAL Fitness API.
+# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/
+#
+# Everything in this file is PUBLIC (the repo is public).
+# Secrets (API keys, invite code, admin emails) go in via `npx wrangler secret put`.
+
+name = "pal-fit-api"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# --- Database -------------------------------------------------------------
+[[d1_databases]]
+binding = "DB"                     # available in code as env.DB
+database_name = "pal-fitness"
+database_id = "fcb7661b-dc96-44f1-9680-1ddd637a74b7"
+
+# --- Scheduled jobs (UTC) -------------------------------------------------
+# 18:30 UTC = 00:00 IST -> nightly final grading
+# 20:30 UTC = 02:00 IST -> retry anything still ungraded
+[triggers]
+crons = ["30 18 * * *", "30 20 * * *"]
+
+# --- Public settings ------------------------------------------------------
+[vars]
+TIMEZONE = "Asia/Kolkata"
+# Where the web app is served from (GitHub Pages). Used for CORS.
+FRONTEND_ORIGIN = "https://veganism-is-future-twin.github.io"
+# Filled in once the Google OAuth client is created (it is public by design).
+GOOGLE_CLIENT_ID = ""

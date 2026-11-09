@@ -1,0 +1,16 @@
+# Copy this file to `.dev.vars` (same folder) for LOCAL development only.
+# `.dev.vars` is gitignored. Never put real values in this example file.
+#
+# In production, set each of these with:
+#   npx wrangler secret put <NAME>
+
+# Code a new member must enter on their FIRST Google sign-in.
+GROUP_INVITE_CODE=change-me
+
+# Comma-separated emails that get the admin role on sign-in.
+# Kept as a secret (not in wrangler.toml) so personal emails stay out of the public repo.
+ADMIN_EMAILS=someone@example.com
+
+# AI provider keys (the AI coach design is still being decided).
+GEMINI_API_KEY=
+OPENROUTER_API_KEY=

@@ -1,0 +1,19 @@
+{
+  "name": "pal-fit-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PAL Fitness backend — Cloudflare Worker + D1",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init:local": "wrangler d1 execute pal-fitness --local --file=schema.sql",
+    "db:init:remote": "wrangler d1 execute pal-fitness --remote --file=schema.sql"
+  },
+  "dependencies": {
+    "jose": "^6.2.16"
+  },
+  "devDependencies": {
+    "wrangler": "^4.158.0"
+  }
+}
