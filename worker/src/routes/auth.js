@@ -22,10 +22,11 @@ async function signIn(ctx, identity, inviteCode) {
   let user = await first(env.DB, 'SELECT * FROM users WHERE google_sub = ?', identity.sub);
 
   if (!user) {
-    // New member: invite code required (admins listed in ADMIN_EMAILS skip it).
-    if (!isAdminEmail) {
-      const expected = await getSetting(env, 'invite_code');
-      if (!expected) throw new ApiError(403, 'invite_not_configured', 'Sign-ups are closed. Ask the group admin.');
+    // New member. Sign-ups are OPEN to any Google account by default.
+    // If an admin sets an invite code (Admin → AI & keys), new members must enter it
+    // (admins listed in ADMIN_EMAILS always skip it).
+    const expected = isAdminEmail ? null : await getSetting(env, 'invite_code');
+    if (expected) {
       if (!inviteCode) throw new ApiError(403, 'invite_required', 'Enter the group invite code to join.');
       if (!safeEqual(String(inviteCode).trim(), expected)) {
         throw new ApiError(403, 'invite_invalid', 'That invite code is not right. Check with the group admin.');
