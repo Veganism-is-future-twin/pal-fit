@@ -24,7 +24,7 @@ export const SETTINGS = {
   },
   chain_grade: {
     label: 'AI chain: grading & plans', type: 'json',
-    help: 'Tried in order. Strong models first.',
+    help: 'Tried in order, strong models first. Optional per model: "timeoutMs" (2000–60000) and "thinking" (minimal/low/medium/high, Gemini 3 only). Slow models are automatically cut short so fast ones always get a turn.',
     default: [
       { provider: 'gemini', model: 'gemini-3.8-flash' },
       { provider: 'gemini', model: 'gemini-3.6-flash' },
@@ -191,6 +191,13 @@ function validateChain(chain) {
     if (!step || !PROVIDERS.includes(step.provider) || typeof step.model !== 'string' || !step.model.trim()) {
       throw new ApiError(400, 'bad_value',
         `Each step needs "provider" (${PROVIDERS.join(', ')}) and "model".`);
+    }
+    // Optional extras per step.
+    if (step.thinking != null && !['minimal', 'low', 'medium', 'high'].includes(step.thinking)) {
+      throw new ApiError(400, 'bad_value', '"thinking" must be minimal, low, medium or high.');
+    }
+    if (step.timeoutMs != null && !(Number.isInteger(step.timeoutMs) && step.timeoutMs >= 2000 && step.timeoutMs <= 60000)) {
+      throw new ApiError(400, 'bad_value', '"timeoutMs" must be a whole number from 2000 to 60000.');
     }
   }
 }

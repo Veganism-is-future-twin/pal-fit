@@ -14,7 +14,8 @@
 import { getSetting } from '../settings.js';
 import { todayIST } from '../time.js';
 
-const TIMEOUT_MS = 12000;
+const TIMEOUT_MS = 12000;        // default per-try limit
+const MAX_TIMEOUT_MS = 60000;    // never wait longer than this for one model
 
 /** Create a per-invocation tracker: external-call budget + usage counters. */
 export function newAiRun({ externalBudget = 40, deadlineMs = null } = {}) {
@@ -59,11 +60,28 @@ async function apiKey(env, run, provider) {
 export async function runChain(env, run, chainKey, prompt, validate = (t) => t) {
   const chain = await getSetting(env, chainKey);
   const errors = [];
-  for (const step of chain) {
+  for (let i = 0; i < chain.length; i++) {
+    const step = chain[i];
     const name = `${step.provider}:${step.model}`;
-    if (run.deadline && Date.now() > run.deadline - 3000) { errors.push(`${name}: out of time`); break; }
+
+    // Time budget: each try only gets the time that's left, and slow models
+    // always leave ~6 s for the fast models further down the chain. So a slow
+    // free-tier model can never use up all the time and leave the user waiting.
+    let timeoutMs = Math.min(step.timeoutMs || prompt.timeoutMs || TIMEOUT_MS, MAX_TIMEOUT_MS);
+    if (run.deadline) {
+      const left = run.deadline - Date.now();
+      const reserve = i < chain.length - 1 ? 6000 : 1000;
+      timeoutMs = Math.min(timeoutMs, left - reserve);
+      if (timeoutMs < 2500) {
+        // Not enough time for this one; the fast ones further down may still fit.
+        if (left < 3500) { errors.push(`${name}: out of time`); break; }
+        errors.push(`${name}: skipped (not enough time left)`);
+        continue;
+      }
+    }
+
     try {
-      const text = await callProvider(env, run, step, prompt);
+      const text = await callProvider(env, run, step, { ...prompt, timeoutMs });
       const value = validate(text);
       noteUsage(run, name, true);
       return { value, provider: name };
@@ -87,7 +105,7 @@ export async function callProvider(env, run, step, prompt) {
   if (run.externalLeft <= 0) throw skip('call budget used up');
   run.externalLeft--;
 
-  if (step.provider === 'gemini') return callGemini(key, step.model, prompt);
+  if (step.provider === 'gemini') return callGemini(key, step, prompt);
   if (step.provider === 'groq') {
     return callOpenAiCompatible('https://api.groq.com/openai/v1/chat/completions', key, step.model, prompt);
   }
@@ -120,18 +138,18 @@ async function httpJson(url, init, timeoutMs = TIMEOUT_MS) {
 }
 
 // --- Google Gemini ----------------------------------------------------------
-// Gemini 3.x "Flash" models think before answering, which can take 10+ seconds.
-// For short coaching replies a LOW thinking level is plenty and much faster.
-const wantsLowThinking = (model) => /^gemini-[3-9]/.test(model) && !/lite/.test(model);
-
-async function callGemini(key, model, { system, messages, json, maxTokens = 2048, timeoutMs }) {
+// Optional per-model "thinking" level from the chain setting, e.g.
+//   {"provider":"gemini","model":"gemini-3.8-flash","thinking":"low"}
+// Off by default (Google's own default is used).
+async function callGemini(key, step, { system, messages, json, maxTokens = 2048, timeoutMs }) {
+  const model = step.model;
   const body = {
     contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
     generationConfig: { temperature: 0.6, maxOutputTokens: maxTokens },
   };
   if (system) body.systemInstruction = { parts: [{ text: system }] };
   if (json) body.generationConfig.responseMimeType = 'application/json';
-  if (wantsLowThinking(model)) body.generationConfig.thinkingConfig = { thinkingLevel: 'low' };
+  if (step.thinking) body.generationConfig.thinkingConfig = { thinkingLevel: step.thinking };
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   const send = (b) => httpJson(url,
@@ -176,13 +194,13 @@ async function callOpenAiCompatible(url, key, model, { system, messages, maxToke
 }
 
 // --- Cloudflare Workers AI ---------------------------------------------------
-async function callWorkersAi(env, model, { system, messages, maxTokens = 1024 }) {
+async function callWorkersAi(env, model, { system, messages, maxTokens = 1024, timeoutMs = TIMEOUT_MS + 8000 }) {
   if (!env.AI) throw skip('AI binding missing');
   const call = env.AI.run(model, {
     messages: [...(system ? [{ role: 'system', content: system }] : []), ...messages],
     max_tokens: maxTokens,
   });
-  const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), TIMEOUT_MS + 8000));
+  const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs));
   const out = await Promise.race([call, timeout]);
   let text = out?.response ?? out?.choices?.[0]?.message?.content ?? out?.result?.response;
   if (text && typeof text === 'object') text = JSON.stringify(text);
