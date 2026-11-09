@@ -14,4 +14,4 @@ migrations_dir = "migrations"
 [vars]
 TIMEZONE = "Asia/Kolkata"
 FRONTEND_ORIGIN = "https://veganism-is-future-twin.github.io"
-GOOGLE_CLIENT_ID = ""
+GOOGLE_CLIENT_ID = "504987242612-t8minvuvrmtnv7uv00aud3mg8nfdtju1.apps.googleusercontent.com"

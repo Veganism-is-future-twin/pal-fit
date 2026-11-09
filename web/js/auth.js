@@ -34,8 +34,11 @@ export async function renderGoogleButton(el, clientId, onCredential) {
     use_fedcm_for_prompt: true,
   });
   const width = Math.min(360, Math.max(220, el.clientWidth || 320));
+  // Match the app's monochrome look: black button in light mode, white in dark mode.
+  const forced = document.documentElement.dataset.theme;
+  const dark = forced ? forced === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
   google.accounts.id.renderButton(el, {
-    type: 'standard', theme: 'filled_blue', size: 'large', shape: 'pill',
+    type: 'standard', theme: dark ? 'outline' : 'filled_black', size: 'large', shape: 'pill',
     text: 'continue_with', logo_alignment: 'left', width,
   });
 }

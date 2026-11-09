@@ -39,4 +39,4 @@ TIMEZONE = "Asia/Kolkata"
 # Where the web app is served from (GitHub Pages). Used for CORS.
 FRONTEND_ORIGIN = "https://veganism-is-future-twin.github.io"
 # Google Sign-In OAuth client id (public by design). Fill in after creating it.
-GOOGLE_CLIENT_ID = ""
+GOOGLE_CLIENT_ID = "504987242612-t8minvuvrmtnv7uv00aud3mg8nfdtju1.apps.googleusercontent.com"
